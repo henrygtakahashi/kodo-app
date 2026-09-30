@@ -39,7 +39,8 @@
           "isBackgroundEnabled": false,
           "bluetoothAlwaysPermission": "$(PRODUCT_NAME) uses Bluetooth to scan for nearby devices and show them on the radar."
         }
-      ]
+      ],
+      "expo-router"
     ]
   }
 }

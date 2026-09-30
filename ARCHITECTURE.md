@@ -134,8 +134,11 @@ This is the contract the render layer depends on — see
 
 ## 4. Expo Router entry point
 
-`expo-router` is decided (BRIEF.md §3) but **not yet installed**, because adopting
-it changes the app entry point. Currently:
+`expo-router@~57.0.24` is **installed** (with `react-native-screens`,
+`react-native-safe-area-context`, `expo-linking`, `expo-constants`), and
+`expo install` registered its config plugin in `app.json`. It is **not yet wired
+up**: the entry point still boots `App.tsx`, so the router is inert and there is no
+`src/app/` yet. Nothing is broken — the app runs exactly as before. Currently:
 
 ```jsonc
 // package.json
@@ -153,7 +156,8 @@ Adopting the router requires:
 `device/[id]` and for dev-client linking.
 
 This is a single atomic change; do it as the first step of building the navigation
-shell, not piecemeal.
+shell, not piecemeal. Until it happens, `expo-router` is a declared dependency with
+no routes — deliberate, not an oversight.
 
 ---
 
@@ -174,7 +178,13 @@ Expo Go cannot load BLE at all — native dev builds only.
 ## 6. Status
 
 **Installed:** `react-native-ble-plx@^3.5.1`, `expo-dev-client@~57.0.19`,
-`zustand@^5.0.15`. Typecheck clean, `expo-doctor` 21/21.
+`zustand@^5.0.15`, `expo-system-ui@~57.0.4`, and the routing set —
+`expo-router@~57.0.24`, `react-native-screens@~4.26.0`,
+`react-native-safe-area-context@~5.7.0`, `expo-linking@~57.0.11`,
+`expo-constants@~57.0.20`. Typecheck clean, `expo-doctor` 21/21, Android prebuild
+clean with BLE permissions and dark theme intact.
+
+**Wired up:** BLE plugin, dark theme. **Not wired up:** `expo-router` (see §4).
 
 **Not yet installed:** the UI and animation stack — see
 [DESIGN.md §3](./DESIGN.md#3-stack).
