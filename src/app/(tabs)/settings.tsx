@@ -3,11 +3,15 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { useTheme, useThemeStore } from '@/theme/use-theme';
-import { themes, type Palette, type ThemeMode } from '@/theme/themes';
+import { themes, type Palette, type ThemeId } from '@/theme/themes';
 
-const MODES: { mode: ThemeMode; title: string; blurb: string }[] = [
-  { mode: 'dark', title: 'Night', blurb: 'Amber on deep brown-black. Best indoors and after dark.' },
-  { mode: 'light', title: 'Daylight', blurb: 'The same amber pressed into warm paper. Readable in sun.' },
+const THEMES: { id: ThemeId; title: string; blurb: string }[] = [
+  {
+    id: 'graphite',
+    title: 'Graphite',
+    blurb: 'Neutral greys, amber only for signal. Easier on the eyes for long sessions.',
+  },
+  { id: 'night', title: 'Night', blurb: 'Amber on deep brown-black. Best indoors and after dark.' },
 ];
 
 /** A swatch of the real palette, so the choice is shown rather than described. */
@@ -25,8 +29,8 @@ function Preview({ palette }: { palette: Palette }) {
 export default function SettingsScreen() {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const mode = useThemeStore((state) => state.mode);
-  const setMode = useThemeStore((state) => state.setMode);
+  const themeId = useThemeStore((state) => state.themeId);
+  const setThemeId = useThemeStore((state) => state.setThemeId);
 
   return (
     <Screen>
@@ -35,12 +39,12 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.sectionLabel}>Theme</Text>
 
-        {MODES.map((entry) => {
-          const active = mode === entry.mode;
+        {THEMES.map((entry) => {
+          const active = themeId === entry.id;
           return (
             <Pressable
-              key={entry.mode}
-              onPress={() => setMode(entry.mode)}
+              key={entry.id}
+              onPress={() => setThemeId(entry.id)}
               accessibilityRole="radio"
               accessibilityState={{ selected: active }}
               style={({ pressed }) => [
@@ -48,7 +52,7 @@ export default function SettingsScreen() {
                 active && styles.optionActive,
                 pressed && styles.optionPressed,
               ]}>
-              <Preview palette={themes[entry.mode]} />
+              <Preview palette={themes[entry.id]} />
               <View style={styles.optionBody}>
                 <Text style={[styles.optionTitle, active && styles.optionTitleActive]}>
                   {entry.title}
@@ -63,7 +67,7 @@ export default function SettingsScreen() {
         })}
 
         <Text style={styles.note}>
-          The choice is not saved yet, so it returns to Night when the app restarts.
+          The choice is not saved yet, so it returns to Graphite when the app restarts.
         </Text>
       </ScrollView>
     </Screen>

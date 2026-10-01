@@ -187,7 +187,7 @@ export function TransmitterList() {
                 y={index * ROW_HEIGHT + STRIP_INSET}
                 width={stripWidth}
                 height={ROW_HEIGHT - STRIP_INSET * 2}
-                track={theme.surface}
+                track={theme.track}
                 clock={clock}
                 scrollY={scrollY}
                 viewport={viewport}

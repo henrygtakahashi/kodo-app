@@ -270,15 +270,15 @@ Gesture handoff and haptic timing cannot be judged from code.
 
 ## 8. Design tokens
 
-Two palettes, one identity: amber CRT on a dark ground, and the same amber
-pressed into warm paper. The user picks in Settings; `src/theme/themes.ts` holds
-both and `useTheme()` serves the active one.
+Two dark palettes: Graphite — neutral chrome with amber kept for data — and
+Night, the original amber CRT. The user picks in Settings; `src/theme/themes.ts`
+holds both and `useTheme()` serves the active one.
 
 Every ratio is computed against that palette's own ground — text at 4.5:1,
 non-text graphics at 3:1. Three palettes in a row had a first draft whose faint
 end failed, so the check now runs before values land.
 
-### Night (default)
+### Night
 
 | Token | Value | On `bg` |
 |---|---|---|
@@ -290,26 +290,35 @@ end failed, so the check now runs before values land.
 | `signal` | `#FFB224` | 11.14 — AAA |
 | bands | `#FDAE26` `#EB9A0F` `#C38418` `#92661C` | 10.77 → 3.96 |
 
-### Daylight
+### Graphite (default)
+
+Added after amber-on-brown read as tiring over long sessions, and made the
+default after comparing it with Night on the device. Night stays selectable.
 
 | Token | Value | On `bg` |
 |---|---|---|
-| `bg` | `#F5F1E8` | warm paper |
-| `surface` / `surfaceRaised` | `#FFFFFF` / `#EBE5D8` | |
-| `border` | `#D8CFBC` | |
-| `textPrimary` | `#1C1710` | 15.80 — AAA |
-| `textTertiary` | `#6B5C45` | 5.75 — AA |
-| `signal` | `#8A5712` | 5.40 — AA |
-| bands | `#684508` `#845B15` `#997029` `#A27D3F` | 7.62 → 3.36 |
+| `bg` | `#121418` | neutral charcoal, 3× Night's luminance |
+| `surface` / `surfaceRaised` | `#1A1D21` / `#22262B` | |
+| `border` | `#2C3036` | |
+| `textPrimary` | `#D5D8DD` | 12.90 — AAA |
+| `textSecondary` | `#ABB0B7` | 8.45 |
+| `textTertiary` | `#878D95` | 5.51 — AA |
+| `signal` | `#FFB224` | 10.22 — AAA |
+| bands | Night's ramp, unchanged | 9.89 → 3.63 (3.33 on the track) |
 
-**The ramp inverts between them.** On the dark ground the strongest band is the
-brightest; on paper it is the darkest. A light ground also caps the faint end —
-at 3:1 nothing lighter than relative luminance 0.2605 is legible on this paper —
-so the daylight ramp is compressed and colour carries less of the ordinal
-signal. Band name and list position carry it in both.
+Two levers against glare, neither of them hue: a lifted ground, since
+near-black under bright text is what blooms, and primary text pulled from 14.6
+to 12.9:1. Grey text alone would not help — `#E5E7EB` sits at the same contrast
+as Night's bone. Identity chips are barely tinted (14% saturation) so amber
+stays reserved for what is measured.
+
+**No light palette.** Two were built — amber pressed into warm paper, then a
+neutral light twin of Graphite — and both were dropped. Amber cannot be bright
+on a light ground and stay legible, so it darkens toward brown, and the light
+ground compresses the band ramp. The app is dark-only.
 
 Identity-chip hues are constrained to **24–58** so per-device colour stays inside
-the amber family in either palette.
+the amber family in every palette.
 
 ### Type
 
@@ -334,7 +343,7 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
 
 **Resolved**
 
-- **Two palettes, user-selectable** in Settings — see §8. Night is the default.
+- **Palettes are user-selectable** in Settings — see §8. Graphite is the default.
 - **Hunt reads on a moving-coil meter**, not a progress ring: printed face,
   etched scale, needle on a pivot with a counterweight tail. A needle shows a
   value and its movement in one mark, has no notion of position, and its lag is
@@ -359,7 +368,7 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
 **Still open**
 
 - **Theme choice is not persisted.** No storage dependency is installed, so it
-  resets to Night on a cold start. Needs fixing before release.
+  resets to Graphite on a cold start. Needs fixing before release.
 - Dense cadence strips merge into a solid block above roughly 10 Hz. Density is
   itself the signal, so this may be correct as-is.
 - App name is still a placeholder.

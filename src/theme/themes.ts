@@ -1,6 +1,7 @@
 /**
- * Two palettes, one identity: amber CRT on a dark ground, and the same amber
- * pressed into warm paper for daylight.
+ * Graphite (neutral chrome, amber kept for data) and Night, the original amber
+ * CRT on a brown-black ground. Both dark: a light palette was built twice and
+ * dropped.
  *
  * Every ratio below is computed against that palette's own ground, text at
  * 4.5:1 and non-text graphics at 3:1. Three palettes in a row had a first draft
@@ -14,6 +15,8 @@ export type Palette = {
   surface: string;
   surfaceRaised: string;
   border: string;
+  /** Recessed track behind the cadence ticks. */
+  track: string;
   textPrimary: string;
   textSecondary: string;
   textTertiary: string;
@@ -21,7 +24,7 @@ export type Palette = {
   warning: string;
   danger: string;
   bands: { immediate: string; near: string; far: string; distant: string };
-  /** Printed face of the meter — paper-ish in both modes, like real test gear. */
+  /** Printed face of the meter. */
   meterFace: string;
   meterInk: string;
   /** Identity-chip hue range, kept inside the amber family. */
@@ -33,6 +36,7 @@ export const darkTheme: Palette = {
   mode: 'dark',
   bg: '#0A0705',
   surface: '#16100B',
+  track: '#16100B',
   surfaceRaised: '#211810',
   border: '#2A1F14',
   textPrimary: '#F2D9A8', // 14.60:1
@@ -49,26 +53,40 @@ export const darkTheme: Palette = {
   chipInk: (hue) => `hsl(${hue}, 62%, 68%)`,
 };
 
-export const lightTheme: Palette = {
-  mode: 'light',
-  bg: '#F5F1E8',
-  surface: '#FFFFFF',
-  surfaceRaised: '#EBE5D8',
-  border: '#D8CFBC',
-  textPrimary: '#1C1710', // 15.80:1
-  textSecondary: '#4A3F2E', // 9.13:1
-  textTertiary: '#6B5C45', // 5.75:1
-  signal: '#8A5712', // 5.40:1
-  warning: '#8F4E06', // 5.71:1
-  danger: '#A33124', // 6.16:1
-  // Inverted: strongest is darkest on paper. A light ground caps the faint end
-  // at relative luminance 0.2605, so the ramp is compressed into the dark part
-  // of the range and colour carries less of the ordinal signal than on dark.
-  bands: { immediate: '#684508', near: '#845B15', far: '#997029', distant: '#A27D3F' },
-  meterFace: '#FBF7EC',
-  meterInk: '#2A2113',
-  chipFill: (hue) => `hsl(${hue}, 46%, 88%)`,
-  chipInk: (hue) => `hsl(${hue}, 58%, 26%)`,
+/**
+ * Neutral chrome, amber data. The default; Night stays selectable beside it.
+ *
+ * The ground is lifted to three times Night's luminance (0.0069 against
+ * 0.0023): near-black under bright text is what makes text bloom. Primary text
+ * drops from 14.6:1 to 12.9:1 for the same reason. Amber is kept for what is
+ * measured: the band ramp, the meter needle, the selected state. The band ramp
+ * is Night's, unchanged; its faint end still clears 3:1 on both ground and
+ * track (3.63 / 3.33).
+ */
+export const graphiteTheme: Palette = {
+  mode: 'dark',
+  bg: '#121418',
+  surface: '#1A1D21',
+  track: '#1A1D21',
+  surfaceRaised: '#22262B',
+  border: '#2C3036',
+  textPrimary: '#D5D8DD', // 12.90:1
+  textSecondary: '#ABB0B7', // 8.45:1
+  textTertiary: '#878D95', // 5.51:1
+  signal: '#FFB224', // 10.22:1
+  warning: '#FF8A1F', // 7.82:1
+  danger: '#FF6B35', // 6.50:1
+  bands: { immediate: '#FDAE26', near: '#EB9A0F', far: '#C38418', distant: '#92661C' },
+  meterFace: '#1B1E22',
+  meterInk: '#D5D8DD', // 11.71:1 on the face
+  // Barely tinted, so per-device colour stays a hint and amber stays for data.
+  chipFill: (hue) => `hsl(${hue}, 14%, 18%)`,
+  chipInk: (hue) => `hsl(${hue}, 30%, 72%)`, // 6.8–7.7:1
 };
 
-export const themes: Record<ThemeMode, Palette> = { dark: darkTheme, light: lightTheme };
+export type ThemeId = 'night' | 'graphite';
+
+export const themes: Record<ThemeId, Palette> = {
+  night: darkTheme,
+  graphite: graphiteTheme,
+};
