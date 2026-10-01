@@ -16,6 +16,9 @@ function secondsAgo(lastSeen: number): string {
  * an 8 Hz RSSI tick repaints one card's readout instead of the whole list.
  */
 export const DeviceCard = memo(function DeviceCard({ id }: { id: string }) {
+  // While paused nothing re-renders, so a relative age would freeze at its last
+  // value and quietly lie — "now" stays "now" however long the pause lasts.
+  const scanning = useDeviceStore((state) => state.scanning);
   const record = useDeviceStore(
     useShallow((state) => {
       const device = state.devices[id];
@@ -62,7 +65,7 @@ export const DeviceCard = memo(function DeviceCard({ id }: { id: string }) {
               : record.isConnectable
                 ? 'connectable'
                 : 'broadcast-only',
-            secondsAgo(record.lastSeen),
+            scanning ? secondsAgo(record.lastSeen) : null,
           ]
             .filter(Boolean)
             .join(' · ')}

@@ -61,6 +61,8 @@ type DevicesState = {
   sortKey: SortKey;
   filters: Filters;
   frozen: boolean;
+  /** User intent, not gate state. Scanning only runs when both allow it. */
+  scanning: boolean;
   lastOrderAt: number;
   /** Set when an id is added or removed, so membership bypasses the cooldown. */
   membershipDirty: boolean;
@@ -69,6 +71,7 @@ type DevicesState = {
   sweepStale: () => void;
   recomputeOrder: (force?: boolean) => void;
   setFrozen: (frozen: boolean) => void;
+  setScanning: (scanning: boolean) => void;
   setSortKey: (key: SortKey) => void;
   setFilters: (patch: Partial<Filters>) => void;
   reset: () => void;
@@ -123,6 +126,7 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
   sortKey: 'signal',
   filters: { query: '', minRssi: null, namedOnly: false },
   frozen: false,
+  scanning: true,
   lastOrderAt: 0,
   membershipDirty: false,
 
@@ -237,6 +241,13 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
   },
 
   setFrozen: (frozen) => set({ frozen }),
+
+  /**
+   * Pausing keeps the list exactly as it stands. The sweep stops with the scan,
+   * so nothing expires while paused — otherwise every device would vanish ten
+   * seconds after the user pressed pause, which is the opposite of a snapshot.
+   */
+  setScanning: (scanning) => set({ scanning }),
 
   // Explicit user actions bypass the cooldown — a control that takes 3 s to
   // respond reads as broken.

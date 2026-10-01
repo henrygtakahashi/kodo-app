@@ -24,7 +24,6 @@ export function useScan(enabled: boolean) {
     if (!enabled) return;
 
     const manager = getBleManager();
-    const store = useDeviceStore.getState();
     setError(null);
 
     // allowDuplicates is iOS-only and does nothing here. On Android the
@@ -58,7 +57,8 @@ export function useScan(enabled: boolean) {
       clearInterval(sweep);
       manager.stopDeviceScan();
       pending.current.clear();
-      store.reset();
+      // Deliberately no reset: pausing must keep the list readable. Entries
+      // that really did go away expire on their own once the sweep resumes.
     };
   }, [enabled]);
 
