@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { base64ToHex } from '@/ble/base64';
+import { KIND_LABELS, SOURCE_LABELS } from '@/ble/kind';
 import { bandFor } from '@/ble/signal';
 import { advertisingIntervalMs, useDeviceStore } from '@/store/devices';
 import { useTheme } from '@/theme/use-theme';
@@ -128,6 +129,14 @@ export default function DeviceDetailScreen() {
         <Row label="Name" value={ad.name} />
         <Row label="Local name" value={ad.localName} />
         <Row label="Vendor" value={record.identity.vendor} />
+        <Row
+          label="Kind"
+          value={
+            record.identity.kind
+              ? `${KIND_LABELS[record.identity.kind.kind]} (from ${SOURCE_LABELS[record.identity.kind.source]})`
+              : null
+          }
+        />
         <Row
           label="Advertising mode"
           value={

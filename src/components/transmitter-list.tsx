@@ -4,10 +4,12 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { advertisingIntervalMs, useDeviceStore } from '@/store/devices';
+import { KIND_LABELS } from '@/ble/kind';
 import { bandFor } from '@/ble/signal';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 import { CadenceStrip } from './cadence-strip';
+import { KindIcon } from './kind-icon';
 
 export const ROW_HEIGHT = 68;
 const STRIP_INSET = 16;
@@ -29,6 +31,7 @@ function readRow(id: string) {
       vendor && !label.toLowerCase().includes(vendor.toLowerCase())
         ? `${vendor.toUpperCase()}·${suffix}`
         : suffix,
+    kind: record?.identity.kind?.kind ?? null,
     hue: record?.hue ?? 160,
     band: bandFor(record?.smoothed ?? -127),
     dbm: Math.round(record?.smoothed ?? -127),
@@ -56,6 +59,7 @@ const Row = memo(function Row({ id }: { id: string }) {
         prev.interval === next.interval &&
         prev.label === next.label &&
         prev.chip === next.chip &&
+        prev.kind === next.kind &&
         prev.stale === next.stale
           ? prev
           : next
@@ -68,12 +72,15 @@ const Row = memo(function Row({ id }: { id: string }) {
       style={({ pressed }) => [styles.row, row.stale && styles.stale, pressed && styles.pressed]}
       onPress={() => router.push({ pathname: '/device/[id]', params: { id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${row.label}, ${row.dbm} dBm, every ${formatInterval(row.interval)}`}
+      accessibilityLabel={`${row.label}${row.kind ? `, ${KIND_LABELS[row.kind]}` : ''}, ${row.dbm} dBm, every ${formatInterval(row.interval)}`}
       accessibilityHint="Opens device details">
       <View style={styles.labelCell}>
-        <Text style={styles.label} numberOfLines={1}>
-          {row.label}
-        </Text>
+        <View style={styles.title}>
+          {row.kind && <KindIcon kind={row.kind} size={14} color={theme.textTertiary} />}
+          <Text style={styles.label} numberOfLines={1}>
+            {row.label}
+          </Text>
+        </View>
         <View style={styles.subline}>
           <View style={[styles.chip, { backgroundColor: theme.chipFill(row.hue) }]}>
             <Text style={[styles.chipText, { color: theme.chipInk(row.hue) }]} numberOfLines={1}>
@@ -161,7 +168,8 @@ const makeStyles = (t: Palette) =>
   stale: { opacity: 0.45 },
   pressed: { backgroundColor: t.surfaceRaised },
   labelCell: { width: LABEL_WIDTH, paddingRight: 10, gap: 4 },
-  label: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
+  title: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  label: { flexShrink: 1, color: t.textPrimary, fontSize: 15, fontWeight: '600' },
   subline: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   chip: { flexShrink: 1, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 },
   chipText: { fontSize: 10, fontFamily: 'monospace' },

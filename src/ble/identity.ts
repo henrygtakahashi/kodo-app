@@ -1,6 +1,5 @@
-import type { Device } from 'react-native-ble-plx';
-
 import { decodeBase64 } from './base64';
+import { deriveKind, type Kind, type KindInput } from './kind';
 
 /**
  * Bluetooth SIG company identifiers, little-endian in the first two bytes of
@@ -41,6 +40,8 @@ export type Identity = {
   vendor: string | null;
   /** Last two octets of the id — disambiguates a screen of "Unknown device". */
   suffix: string;
+  /** Null when nothing in the advertisement says what the device is. */
+  kind: Kind | null;
 };
 
 const APPLE_COMPANY_ID = 0x004c;
@@ -131,18 +132,18 @@ function typeFrom(serviceUUIDs: string[] | null): string | null {
  * name -> localName -> inferred type -> vendor -> "Unknown device".
  * Derived once when a device is first seen; none of these change afterwards.
  */
-export function deriveIdentity(device: Device): Identity {
-  const { vendor, detail } = parseManufacturer(device.manufacturerData);
-  const inferred = typeFrom(device.serviceUUIDs);
-  const suffix = device.id.replace(/:/g, '').slice(-4).toUpperCase();
+export function deriveIdentity(id: string, advertisement: KindInput): Identity {
+  const { vendor, detail } = parseManufacturer(advertisement.manufacturerData);
+  const inferred = typeFrom(advertisement.serviceUUIDs);
+  const suffix = id.replace(/:/g, '').slice(-4).toUpperCase();
 
   const label =
-    device.name?.trim() ||
-    device.localName?.trim() ||
+    advertisement.name?.trim() ||
+    advertisement.localName?.trim() ||
     inferred ||
     detail ||
     vendor ||
     'Unknown device';
 
-  return { label, vendor, suffix };
+  return { label, vendor, suffix, kind: deriveKind(advertisement) };
 }

@@ -125,7 +125,7 @@ function mergeAdvertisement(previous: Advertisement, device: Device): Advertisem
 
 export type DeviceRecord = {
   id: string;
-  /** Static: derived once on first sight, never recomputed. */
+  /** Derived on first sight; upgraded only while vendor, kind or name is missing. */
   identity: Identity;
   hue: number;
   isConnectable: boolean | null;
@@ -215,7 +215,8 @@ function advertisementOf(device: Device): Advertisement {
 }
 
 function createRecord(device: Device, rssi: number, now: number, times: number[]): DeviceRecord {
-  const identity = deriveIdentity(device);
+  const advertisement = advertisementOf(device);
+  const identity = deriveIdentity(device.id, advertisement);
   return {
     id: device.id,
     identity,
@@ -230,7 +231,7 @@ function createRecord(device: Device, rssi: number, now: number, times: number[]
     staleness: 'live',
     history: [rssi],
     arrivals: times.slice(),
-    advertisement: advertisementOf(device),
+    advertisement,
     packets: times.length,
   };
 }
@@ -300,8 +301,14 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
         // is still derived once, but an incomplete one is upgraded when a
         // richer packet arrives — bounded to payload changes, and only while
         // something is still missing.
-        const incomplete = previous.identity.vendor === null || !previous.hasRealName;
-        const identity = changed && incomplete ? deriveIdentity(device) : previous.identity;
+        // Derived from the merged advertisement, not this packet alone, so a
+        // packet that omits a field cannot erase what an earlier one supplied.
+        const incomplete =
+          previous.identity.vendor === null ||
+          previous.identity.kind === null ||
+          !previous.hasRealName;
+        const identity =
+          changed && incomplete ? deriveIdentity(id, advertisement) : previous.identity;
 
         devices[id] = {
           ...previous,

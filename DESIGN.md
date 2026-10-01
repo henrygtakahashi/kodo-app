@@ -338,6 +338,12 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
   that screen. The vendor joins the id chip (`SAMSUNG·3F2A`) only when the label
   does not already name it, and stays text in the chip colours: no brand logos
   or brand colours.
+- **Device-kind icons, only on evidence.** `src/ble/kind.ts` reads the kind from,
+  in order: GAP Appearance (from the raw scan record), the Microsoft CDP
+  device-type byte, the Apple message type, service UUIDs, then vendor naming
+  conventions (`[TV]`, `Galaxy Watch`, `Buds`). No signal means no icon, never
+  a guess. The detail screen names the source (`Watch (from name)`), because
+  the last tier is a pattern match rather than a declared value.
 
 **Still open**
 
