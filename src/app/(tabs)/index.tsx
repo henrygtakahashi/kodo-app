@@ -1,11 +1,10 @@
-import { useCallback } from 'react';
-import { FlatList, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useBle } from '@/ble/ble-provider';
-import { DeviceCard } from '@/components/device-card';
 import { GateNotice } from '@/components/gate-notice';
 import { ScanToggle } from '@/components/scan-toggle';
 import { ScannerControls } from '@/components/scanner-controls';
+import { TransmitterList } from '@/components/transmitter-list';
 import { Screen } from '@/components/screen';
 import { useDeviceStore } from '@/store/devices';
 import { colors } from '@/theme/colors';
@@ -19,7 +18,6 @@ export default function ScannerScreen() {
   const order = useDeviceStore((state) => state.order);
   const total = useDeviceStore((state) => Object.keys(state.devices).length);
   const scanning = useDeviceStore((state) => state.scanning);
-  const setFrozen = useDeviceStore((state) => state.setFrozen);
   // Derived from the filters themselves, not from order.length !== total:
   // `order` lags `devices` by up to the reorder cooldown, so a device found in
   // the last few seconds would otherwise masquerade as an active filter.
@@ -30,14 +28,12 @@ export default function ScannerScreen() {
       state.filters.namedOnly
   );
 
-  const renderItem = useCallback(({ item }: { item: string }) => <DeviceCard id={item} />, []);
-
   if (gate.status !== 'ready') return <GateNotice gate={gate} />;
 
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Scanner</Text>
+        <Text style={styles.title}>Transmitters</Text>
         <ScanToggle />
       </View>
 
@@ -45,11 +41,9 @@ export default function ScannerScreen() {
         <Text style={styles.count}>
           {filtering
             ? `${order.length} of ${total}`
-            : `${total} ${total === 1 ? 'device' : 'devices'}`}
+            : `${total} broadcasting nearby`}
         </Text>
-        {!scanning && total > 0 ? (
-          <Text style={styles.frozenNote}>Snapshot held</Text>
-        ) : null}
+        {!scanning && total > 0 ? <Text style={styles.frozenNote}>Snapshot held</Text> : null}
       </View>
 
       <ScannerControls />
@@ -68,30 +62,20 @@ export default function ScannerScreen() {
         </View>
       ) : null}
 
-      <FlatList
-        data={order}
-        keyExtractor={(id) => id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={() => {
-          Keyboard.dismiss();
-          setFrozen(true);
-        }}
-        // Freeze re-sorting while a finger is down, or rows move out from
-        // under it mid-tap.
-        onScrollEndDrag={() => setFrozen(false)}
-        onMomentumScrollEnd={() => setFrozen(false)}
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            {!scanning
-              ? 'Scanning paused.'
-              : total === 0
-                ? 'Scanning. Nothing in range yet.'
-                : 'No device matches these filters.'}
+      {total === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyLead}>
+            {scanning ? 'Listening.' : 'Scanning paused.'}
           </Text>
-        }
-      />
+          <Text style={styles.emptyHint}>
+            {scanning
+              ? 'Nothing is broadcasting in range yet.'
+              : 'Resume to pick the air back up.'}
+          </Text>
+        </View>
+      ) : (
+        <TransmitterList />
+      )}
     </Screen>
   );
 }
@@ -102,8 +86,9 @@ const styles = StyleSheet.create({
   title: { color: colors.textPrimary, fontSize: 28, fontWeight: '700' },
   count: { color: colors.textTertiary, fontSize: 14 },
   frozenNote: { color: colors.warning, fontSize: 12 },
-  list: { gap: 8, paddingBottom: 24 },
-  empty: { color: colors.textTertiary, fontSize: 15, textAlign: 'center', marginTop: 48 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  emptyLead: { color: colors.textPrimary, fontSize: 17, fontWeight: '600' },
+  emptyHint: { color: colors.textSecondary, fontSize: 14 },
   errorRow: {
     flexDirection: 'row',
     alignItems: 'center',

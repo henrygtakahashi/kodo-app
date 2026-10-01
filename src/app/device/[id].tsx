@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { base64ToHex } from '@/ble/base64';
 import { bandFor } from '@/ble/signal';
 import { advertisingIntervalMs, useDeviceStore } from '@/store/devices';
-import { bands, colors, mono } from '@/theme/colors';
+import { bands, chipFill, chipInk, colors, mono } from '@/theme/colors';
 
 function Row({ label, value }: { label: string; value: string | null }) {
   return (
@@ -72,8 +72,8 @@ export default function DeviceDetailScreen() {
       <Stack.Screen options={{ title: record.identity.label }} />
 
       <View style={styles.hero}>
-        <View style={[styles.chip, { backgroundColor: `hsl(${record.hue}, 45%, 22%)` }]}>
-          <Text style={[styles.chipText, { color: `hsl(${record.hue}, 70%, 70%)` }]}>
+        <View style={[styles.chip, { backgroundColor: chipFill(record.hue) }]}>
+          <Text style={[styles.chipText, { color: chipInk(record.hue) }]}>
             {record.identity.suffix}
           </Text>
         </View>

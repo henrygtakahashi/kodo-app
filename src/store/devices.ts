@@ -1,7 +1,12 @@
 import type { Device } from 'react-native-ble-plx';
 
-/** A device plus how many raw callbacks it produced since the last flush. */
-export type PendingDevice = { device: Device; count: number };
+/**
+ * A device plus the arrival time of every raw callback since the last flush.
+ * Times are captured in the scan callback, not at flush: the cadence display
+ * draws one tick per advertisement, so 125 ms-quantised times would turn every
+ * device into the same rhythm.
+ */
+export type PendingDevice = { device: Device; times: number[] };
 import { create } from 'zustand';
 
 import { hueFor } from '@/ble/hash';
@@ -39,6 +44,9 @@ export const SIGNAL_BUCKET_DB = 4;
 export const HISTORY_HZ = 4;
 export const HISTORY_SECONDS = 20;
 export const HISTORY_LENGTH = HISTORY_HZ * HISTORY_SECONDS;
+
+/** How much of the recent past the cadence strip shows. */
+export const CADENCE_WINDOW_MS = 10_000;
 
 export type Staleness = 'live' | 'stale';
 
@@ -131,6 +139,8 @@ export type DeviceRecord = {
   staleness: Staleness;
   /** Smoothed RSSI sampled at HISTORY_HZ, oldest first. */
   history: number[];
+  /** Arrival timestamps within CADENCE_WINDOW_MS, oldest first. */
+  arrivals: number[];
   advertisement: Advertisement;
   /**
    * Every scan callback for this device, counted before coalescing. The flush
@@ -204,7 +214,7 @@ function advertisementOf(device: Device): Advertisement {
   };
 }
 
-function createRecord(device: Device, rssi: number, now: number, packets: number): DeviceRecord {
+function createRecord(device: Device, rssi: number, now: number, times: number[]): DeviceRecord {
   const identity = deriveIdentity(device);
   return {
     id: device.id,
@@ -219,8 +229,9 @@ function createRecord(device: Device, rssi: number, now: number, packets: number
     lastSeen: now,
     staleness: 'live',
     history: [rssi],
+    arrivals: times.slice(),
     advertisement: advertisementOf(device),
-    packets,
+    packets: times.length,
   };
 }
 
@@ -273,7 +284,9 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
     const devices = { ...get().devices };
     let added = false;
 
-    pending.forEach(({ device, count }, id) => {
+    const cutoff = now - CADENCE_WINDOW_MS;
+
+    pending.forEach(({ device, times }, id) => {
       const previous = devices[id];
       const rssi = device.rssi ?? previous?.rssi ?? -127;
       if (previous) {
@@ -296,14 +309,17 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
           smoothed: ema(previous.smoothed, rssi),
           lastSeen: now,
           staleness: 'live',
-          packets: previous.packets + count,
+          packets: previous.packets + times.length,
+          // Pruned to the window here rather than at draw time, so the buffer
+          // cannot grow without bound for a chatty device.
+          arrivals: [...previous.arrivals, ...times].filter((t) => t >= cutoff),
           identity,
           hasRealName:
             previous.hasRealName || Boolean(device.name?.trim() || device.localName?.trim()),
           advertisement,
         };
       } else {
-        devices[id] = createRecord(device, rssi, now, count);
+        devices[id] = createRecord(device, rssi, now, times);
         added = true;
       }
     });

@@ -69,7 +69,9 @@ export function useScan(enabled: boolean) {
         // 8 Hz, so counting there would quantise the advertising interval to
         // 125 ms and make it meaningless.
         const seen = pending.current.get(device.id);
-        pending.current.set(device.id, { device, count: (seen?.count ?? 0) + 1 });
+        const times = seen?.times ?? [];
+        times.push(Date.now());
+        pending.current.set(device.id, { device, times });
       }
     );
 

@@ -11,11 +11,21 @@ architecture — BLE config, state management, build setup — lives in
 
 ## 1. Design intent
 
-A BLE radar that does not look like a BLE app. The apps on the store are all a
-scrolling list of MAC addresses, because that is what composing native views
-makes easy. The whole design rests on refusing that default — see §4.
+A scanner that does not look like a scanner. Store BLE apps are a scrolling list
+of MAC addresses because composing native views makes that easy.
 
-Target feel: a dark instrument. Signal rendered as light, not as text.
+Refusing that default is not a licence to invent data — the radar was cut for
+exactly that. Distinction has to come from something materially true about BLE
+and currently invisible. It comes from **rhythm**.
+
+Devices broadcast on intervals from 20 ms to 10.24 s. A Microsoft beacon at
+118 ms draws a near-solid block; a watch at 231 ms a dense comb; a Find My tag at
+2 s two lone ticks. The cadence identifies the kind of device before the name
+does, and no app on the store shows it. Every pixel of it is measured.
+
+The ground is paper, not near-black. Dark was the obvious choice for a scanner
+and also the generic one — and hunting happens outdoors, where a near-black
+screen is the hardest thing to read.
 
 ---
 
@@ -247,54 +257,57 @@ Gesture handoff and haptic timing cannot be judged from code.
 
 ## 8. Design tokens
 
-A dark instrument, not a Material app. Values are a starting set — contrast is
-validated, hues are not sacred.
+Daylight technical. Values are computed against the paper ground, not estimated;
+re-run the check in `src/theme/colors.ts` before changing one.
 
 ### Colour
 
-| Token | Value | Note |
+| Token | Value | On `bg` |
 |---|---|---|
-| `bg` | `#05070A` | Near-black, faintly blue |
-| `surface` | `#0D1117` | Cards, rows |
-| `surfaceRaised` | `#161B22` | Sheets, menus |
-| `border` | `#21262D` | Hairlines |
-| `textPrimary` | `#E6EDF3` | 17.07:1 — AAA |
-| `textSecondary` | `#8B949E` | 6.56:1 — AA |
-| `textTertiary` | `#7D8590` | 5.41:1 — AA |
-| `signal` | `#00E5A0` | Single accent; 12.21:1 — AAA |
-| `warning` | `#D29922` | 7.99:1 — AAA |
-| `danger` | `#F85149` | 6.02:1 — AA |
+| `bg` | `#F2F0EB` | paper |
+| `surface` | `#FFFFFF` | |
+| `surfaceRaised` | `#E7E3DA` | pressed |
+| `border` | `#D6D2C8` | hairline |
+| `textPrimary` | `#1A1814` | 15.56:1 — AAA |
+| `textSecondary` | `#4A453D` | 8.34:1 — AAA |
+| `textTertiary` | `#655F55` | 5.55:1 — AA |
+| `signal` | `#0B6E4F` | 5.49:1 — AA |
+| `warning` | `#8A5712` | 5.34:1 — AA |
+| `danger` | `#B33A2B` | 5.18:1 — AA |
 
-**Proximity bands are a luminance ramp of one hue, not four hues.** The bands are
-*ordinal* (immediate → distant), so a sequential ramp encodes the order; unrelated
-hues would imply unrelated categories.
+### Proximity bands, inverted
 
-| Band | Value | Contrast on `bg` |
+On paper the strongest band is the **darkest**, the reverse of the old dark
+theme.
+
+| Band | Value | On `bg` |
 |---|---|---|
-| `immediate` | `#00E5A0` | 12.21 |
-| `near` | `#00B383` | 7.47 |
-| `far` | `#0C7E64` | 4.02 |
-| `distant` | `#3D6E5F` | 3.45 |
+| `immediate` | `#15654C` | 6.15 |
+| `near` | `#288164` | 4.18 |
+| `far` | `#3E9378` | 3.26 |
+| `distant` | `#539782` | 3.01 |
 
-Luminance descends monotonically and every band clears 3:1, the floor for
-non-text graphics — a distant blip reads as dim but never as absent. Verified by
-computation, not by eye.
+**A light ground caps the weak end.** At 3:1 — the floor for non-text graphics —
+nothing lighter than relative luminance **0.2573** is legible on this paper, so
+the whole ramp is squeezed into 0.0999 → 0.2558, a 2.6x spread. The same ramp on
+near-black spanned nearly 10x.
+
+That is a real consequence, not a detail: colour carries **less** of the ordinal
+signal here. The band name and the position in the list must carry it, with
+colour reinforcing rather than encoding alone.
 
 ### Type
 
-Scale: **12 · 14 · 16 · 20 · 28 · 34**.
+Scale: **11 · 12 · 14 · 15 · 17 · 28**.
 
-**Numeric readouts use a tabular/monospaced face** — RSSI, dBm, MAC suffixes, hex.
-At 5–20 Hz a proportional face changes glyph widths as digits change, so the value
-visibly jitters and the row reflows. Tabular figures hold position. This is a
-correctness issue for a live diagnostics readout, not a stylistic preference.
+Numeric readouts use tabular figures — RSSI, intervals, hex. At 8 Hz a
+proportional face changes glyph widths as digits change, so the value visibly
+jitters and the row reflows. A correctness issue, not a stylistic one.
 
 ### Spacing, radius
 
-Spacing on a 4 grid: **4 · 8 · 12 · 16 · 24 · 32 · 48**.
-Radius: **6** (chips) · **10** (cards) · **16** (sheets) · full (pills).
-
-Motion durations live in §6.
+Spacing on a 4 grid: **4 · 6 · 8 · 10 · 16 · 24**.
+Radius: **3** (chips) · **10** (controls) · full (pills).
 
 ---
 
@@ -302,18 +315,16 @@ Motion durations live in §6.
 
 **Resolved**
 
-- **Theme is dark — applied.** `userInterfaceStyle: "dark"` in `app.json` with
-  `expo-system-ui@~57.0.4` installed. Verified in the generated project:
-  `android/app/src/main/res/values/strings.xml` carries
-  `expo_system_ui_user_interface_style = dark`, which the native module reads at
-  startup. Note `AppTheme` alone parents `Theme.AppCompat.DayNight.NoActionBar`
-  and would otherwise follow the system setting.
-- **Tokens defined** — see §8.
+- **Theme is light, and light-only.** `userInterfaceStyle: "light"` with
+  `expo-system-ui`. Hunting happens outdoors; a near-black screen is unreadable
+  in sunlight. There is no `useColorScheme` branch anywhere.
+- **Scanner is organised by cadence, not by row order** — see §1 and §4.
+- **Tokens defined and contrast-verified** — see §8.
 - **Proximity bands: fixed thresholds** — see §4.
-- **Unnamed-device identity** — fallback chain and stable per-device colour, see
-  BRIEF.md.
 
 **Still open**
 
-- Nothing blocking. Icon set and app name remain unchosen but neither gates
-  Scanner.
+- Dense cadence strips merge into a solid block above roughly 10 Hz. Density is
+  itself the signal, so this may be correct as-is; worth a look on a very chatty
+  beacon.
+- App name is still a placeholder.
