@@ -1,9 +1,10 @@
 import { Canvas } from '@shopify/react-native-skia';
 import { router } from 'expo-router';
 import { memo, useEffect, useMemo, useState } from 'react';
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 
-import { advertisingIntervalMs, useDeviceStore } from '@/store/devices';
+import { advertisingIntervalMs, type DeviceRecord, useDeviceStore } from '@/store/devices';
 import { KIND_LABELS } from '@/ble/kind';
 import { bandFor } from '@/ble/signal';
 import { useTheme } from '@/theme/use-theme';
@@ -16,9 +17,14 @@ const STRIP_INSET = 16;
 const LABEL_WIDTH = 150;
 const RIGHT_WIDTH = 78;
 const CHEVRON_WIDTH = 16;
+/** A dBm move this large shows at once; smaller ones wait for READOUT_MS. */
+const READOUT_JUMP_DBM = 3;
+/** Readouts change at most this often: 8 Hz jitter is unreadable anyway. */
+const READOUT_MS = 500;
 
-function readRow(id: string) {
-  const record = useDeviceStore.getState().devices[id];
+type RowData = ReturnType<typeof readRow>;
+
+function readRow(record: DeviceRecord | undefined) {
   const interval = record ? advertisingIntervalMs(record) : null;
   const label = record?.identity.label ?? '—';
   const vendor = record?.identity.vendor ?? null;
@@ -40,6 +46,26 @@ function readRow(id: string) {
   };
 }
 
+/**
+ * The smoothed dBm and the mean interval shift a little on nearly every flush,
+ * which re-rendered every row 8 times a second for digits nobody can read at
+ * that rate. Identity and staleness show at once; readouts at most every
+ * READOUT_MS, unless the signal jumps.
+ */
+function worthShowing(shown: RowData, next: RowData, elapsed: number): boolean {
+  if (
+    shown.label !== next.label ||
+    shown.chip !== next.chip ||
+    shown.kind !== next.kind ||
+    shown.stale !== next.stale ||
+    shown.band !== next.band
+  ) {
+    return true;
+  }
+  if (shown.dbm === next.dbm && shown.interval === next.interval) return false;
+  return Math.abs(shown.dbm - next.dbm) >= READOUT_JUMP_DBM || elapsed >= READOUT_MS;
+}
+
 function formatInterval(ms: number | null): string {
   if (ms === null) return '—';
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
@@ -48,22 +74,27 @@ function formatInterval(ms: number | null): string {
 const Row = memo(function Row({ id }: { id: string }) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const [row, setRow] = useState(() => readRow(id));
+  const [row, setRow] = useState(() => readRow(useDeviceStore.getState().devices[id]));
 
   useEffect(() => {
-    setRow(readRow(id));
-    return useDeviceStore.subscribe(() => {
-      const next = readRow(id);
-      setRow((prev) =>
-        prev.dbm === next.dbm &&
-        prev.interval === next.interval &&
-        prev.label === next.label &&
-        prev.chip === next.chip &&
-        prev.kind === next.kind &&
-        prev.stale === next.stale
-          ? prev
-          : next
-      );
+    let last = useDeviceStore.getState().devices[id];
+    let shown = readRow(last);
+    let shownAt = Date.now();
+    setRow(shown);
+
+    return useDeviceStore.subscribe((state) => {
+      const record = state.devices[id];
+      // Every row hears every store write; `merge` only replaces records that
+      // received packets, so an unchanged object means nothing to do.
+      if (record === last) return;
+      last = record;
+
+      const next = readRow(record);
+      const now = Date.now();
+      if (!worthShowing(shown, next, now - shownAt)) return;
+      shown = next;
+      shownAt = now;
+      setRow(next);
     });
   }, [id]);
 
@@ -110,6 +141,17 @@ export function TransmitterList() {
   const setFrozen = useDeviceStore((state) => state.setFrozen);
   const [width, setWidth] = useState(0);
 
+  const clock = useSharedValue(Date.now());
+  const scrollY = useSharedValue(0);
+  const viewport = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollY.set(event.contentOffset.y);
+  });
+
+  // One clock write per store write moves every strip's window, instead of
+  // each strip copying its own timestamp to the UI thread.
+  useEffect(() => useDeviceStore.subscribe(() => clock.set(Date.now())), [clock]);
+
   const stripX = LABEL_WIDTH;
   const stripWidth = Math.max(0, width - LABEL_WIDTH - RIGHT_WIDTH - CHEVRON_WIDTH - 8);
 
@@ -121,7 +163,10 @@ export function TransmitterList() {
         <Text style={[styles.axisLabel, styles.axisUnits]}>interval · dBm</Text>
       </View>
 
-      <ScrollView
+      <Animated.ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        onLayout={(e) => viewport.set(e.nativeEvent.layout.height)}
         contentContainerStyle={{ height: order.length * ROW_HEIGHT }}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={() => {
@@ -143,6 +188,9 @@ export function TransmitterList() {
                 width={stripWidth}
                 height={ROW_HEIGHT - STRIP_INSET * 2}
                 track={theme.surface}
+                clock={clock}
+                scrollY={scrollY}
+                viewport={viewport}
               />
             ))}
           </Canvas>
@@ -151,7 +199,7 @@ export function TransmitterList() {
         {order.map((id) => (
           <Row key={id} id={id} />
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

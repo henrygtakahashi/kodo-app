@@ -54,7 +54,7 @@ sorted list. Three separate subscriptions, not one:
 | Subscribes to | Cadence | Re-renders |
 |---|---|---|
 | Ordered array of device **ids** | 3 s cooldown, suspended while the list is touched | the list |
-| That device's own `rssi` | 8 Hz | one row's readout cell |
+| That device's own record | ≤2 Hz, at once on a 3 dBm jump | one row's readouts |
 | Nothing — Reanimated shared values | every frame | nothing |
 
 Membership changes (a device appears or expires) bypass the cooldown and land
@@ -62,8 +62,19 @@ within one 1 Hz sweep; only *reordering* waits. Explicit sort and filter changes
 bypass it too — a control that takes 3 s to answer reads as broken.
 
 The list container subscribes to an **id array only**, so an RSSI change cannot
-re-render it. Each row selects its own value
-(`useDeviceStore(s => s.devices[id]?.rssi)`), so a tick repaints one dBm cell.
+re-render it. Each row and each cadence strip listens to the store but exits at
+once unless its own record object changed — `merge` replaces only the records
+that received packets, so the per-write cost no longer grows with the list.
+
+Readouts are throttled on top of that. The smoothed dBm and mean interval shift
+on nearly every 8 Hz flush, which re-rendered every row 8×/s for digits nobody
+can read at that rate. They now show at most every 500 ms, or at once on a jump
+of 3 dBm or more; identity, staleness and band changes show immediately.
+
+The strips share one clock, advanced once per store write, instead of each strip
+copying its own timestamp to the UI thread. The canvas still spans the whole
+list so it scrolls natively with the rows, but strips outside the viewport skip
+building their path.
 
 Re-sort cadence is capped and paused on touch for a **UX** reason ahead of a
 performance one: a signal-sorted list reordering 8×/sec moves rows out from under
