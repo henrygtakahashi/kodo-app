@@ -13,13 +13,22 @@ export const ROW_HEIGHT = 68;
 const STRIP_INSET = 16;
 const LABEL_WIDTH = 150;
 const RIGHT_WIDTH = 78;
+const CHEVRON_WIDTH = 16;
 
 function readRow(id: string) {
   const record = useDeviceStore.getState().devices[id];
   const interval = record ? advertisingIntervalMs(record) : null;
+  const label = record?.identity.label ?? '—';
+  const vendor = record?.identity.vendor ?? null;
+  const suffix = record?.identity.suffix ?? '';
   return {
-    label: record?.identity.label ?? '—',
-    suffix: record?.identity.suffix ?? '',
+    label,
+    // The vendor joins the id chip only when the label does not already say
+    // it, e.g. "Galaxy Watch8" but not "[TV] Samsung AU77" or a bare "Samsung".
+    chip:
+      vendor && !label.toLowerCase().includes(vendor.toLowerCase())
+        ? `${vendor.toUpperCase()}·${suffix}`
+        : suffix,
     hue: record?.hue ?? 160,
     band: bandFor(record?.smoothed ?? -127),
     dbm: Math.round(record?.smoothed ?? -127),
@@ -46,6 +55,7 @@ const Row = memo(function Row({ id }: { id: string }) {
         prev.dbm === next.dbm &&
         prev.interval === next.interval &&
         prev.label === next.label &&
+        prev.chip === next.chip &&
         prev.stale === next.stale
           ? prev
           : next
@@ -58,14 +68,17 @@ const Row = memo(function Row({ id }: { id: string }) {
       style={({ pressed }) => [styles.row, row.stale && styles.stale, pressed && styles.pressed]}
       onPress={() => router.push({ pathname: '/device/[id]', params: { id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${row.label}, ${row.dbm} dBm, every ${formatInterval(row.interval)}`}>
+      accessibilityLabel={`${row.label}, ${row.dbm} dBm, every ${formatInterval(row.interval)}`}
+      accessibilityHint="Opens device details">
       <View style={styles.labelCell}>
         <Text style={styles.label} numberOfLines={1}>
           {row.label}
         </Text>
         <View style={styles.subline}>
           <View style={[styles.chip, { backgroundColor: theme.chipFill(row.hue) }]}>
-            <Text style={[styles.chipText, { color: theme.chipInk(row.hue) }]}>{row.suffix}</Text>
+            <Text style={[styles.chipText, { color: theme.chipInk(row.hue) }]} numberOfLines={1}>
+              {row.chip}
+            </Text>
           </View>
           <Text style={[styles.band, { color: theme.bands[row.band] }]}>{row.band}</Text>
         </View>
@@ -77,6 +90,8 @@ const Row = memo(function Row({ id }: { id: string }) {
         <Text style={styles.interval}>{formatInterval(row.interval)}</Text>
         <Text style={styles.dbm}>{row.dbm}</Text>
       </View>
+
+      <Text style={styles.chevron}>›</Text>
     </Pressable>
   );
 });
@@ -89,13 +104,14 @@ export function TransmitterList() {
   const [width, setWidth] = useState(0);
 
   const stripX = LABEL_WIDTH;
-  const stripWidth = Math.max(0, width - LABEL_WIDTH - RIGHT_WIDTH - 8);
+  const stripWidth = Math.max(0, width - LABEL_WIDTH - RIGHT_WIDTH - CHEVRON_WIDTH - 8);
 
   return (
     <View style={styles.container} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <View style={styles.axis}>
-        <Text style={styles.axisLabel}>cadence, last 10s</Text>
-        <Text style={styles.axisLabel}>every</Text>
+        <Text style={[styles.axisLabel, styles.axisDevice]}>device</Text>
+        <Text style={[styles.axisLabel, styles.axisWindow]}>last 10s → now</Text>
+        <Text style={[styles.axisLabel, styles.axisUnits]}>interval · dBm</Text>
       </View>
 
       <ScrollView
@@ -119,6 +135,7 @@ export function TransmitterList() {
                 y={index * ROW_HEIGHT + STRIP_INSET}
                 width={stripWidth}
                 height={ROW_HEIGHT - STRIP_INSET * 2}
+                track={theme.surface}
               />
             ))}
           </Canvas>
@@ -137,17 +154,21 @@ const makeStyles = (t: Palette) =>
   container: { flex: 1 },
   axis: { flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 6 },
   axisLabel: { color: t.textTertiary, fontSize: 11 },
+  axisDevice: { width: LABEL_WIDTH },
+  axisWindow: { flex: 1 },
+  axisUnits: { paddingRight: CHEVRON_WIDTH },
   row: { height: ROW_HEIGHT, flexDirection: 'row', alignItems: 'center' },
   stale: { opacity: 0.45 },
   pressed: { backgroundColor: t.surfaceRaised },
   labelCell: { width: LABEL_WIDTH, paddingRight: 10, gap: 4 },
   label: { color: t.textPrimary, fontSize: 15, fontWeight: '600' },
   subline: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  chip: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 },
+  chip: { flexShrink: 1, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 },
   chipText: { fontSize: 10, fontFamily: 'monospace' },
   band: { fontSize: 11 },
   spacer: { flex: 1 },
   right: { width: RIGHT_WIDTH, alignItems: 'flex-end', gap: 2 },
   interval: { color: t.textPrimary, fontSize: 14, fontFamily: 'monospace' },
   dbm: { color: t.textTertiary, fontSize: 12, fontFamily: 'monospace' },
+  chevron: { width: CHEVRON_WIDTH, textAlign: 'right', color: t.textTertiary, fontSize: 17 },
 });

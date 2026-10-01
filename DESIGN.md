@@ -315,7 +315,7 @@ Radius: **3** (chips, meter face) · **10** (controls) · full (pills).
 
 `NativeTabs` takes its colours from the platform theme — Material blue on
 Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
-`indicatorColor` and `rippleColor` from the active palette.
+`labelStyle`, `indicatorColor` and `rippleColor` from the active palette.
 
 ---
 
@@ -330,6 +330,14 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
   physical rather than decorative.
 - **Scanner is organised by cadence** — see §1 and §4.
 - **Proximity bands: fixed thresholds** — see §4.
+- **Scanner row details.** Cadence ticks sit in a recessed `surface` track, so
+  an empty stretch reads as measured silence rather than missing data. Units
+  live in the column header (`interval · dBm`), not repeated per row.
+  `every · dBm` read as one phrase, and a stacked header broke the single line. A faint `›`
+  marks the row as opening the detail screen; Hunt stays one step further, on
+  that screen. The vendor joins the id chip (`SAMSUNG·3F2A`) only when the label
+  does not already name it, and stays text in the chip colours: no brand logos
+  or brand colours.
 
 **Still open**
 

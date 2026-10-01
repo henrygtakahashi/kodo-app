@@ -13,7 +13,12 @@ export default function TabsLayout() {
       <NativeTabs
         backgroundColor={theme.surface}
         tintColor={theme.signal}
-        iconColor={theme.textTertiary}
+        iconColor={{ default: theme.textTertiary, selected: theme.signal }}
+        // Unselected labels otherwise fall back to Material blue.
+        labelStyle={{
+          default: { color: theme.textTertiary },
+          selected: { color: theme.signal },
+        }}
         indicatorColor={theme.surfaceRaised}
         rippleColor={theme.surfaceRaised}>
         <NativeTabs.Trigger name="index">
