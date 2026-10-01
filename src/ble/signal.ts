@@ -19,3 +19,30 @@ export function bandFor(rssi: number): Band {
   if (rssi > -85) return 'far';
   return 'distant';
 }
+
+/**
+ * RSSI mapped to a normalised radar radius, 0 at the centre to 1 at the rim.
+ *
+ * Linear in dBm on purpose. dBm is already logarithmic in power, and free-space
+ * path loss goes as 20*log10(distance), so linear-in-dBm is roughly
+ * linear-in-log-distance — which is what a radar's rings should read as.
+ *
+ * Floored above zero so the strongest devices do not pile up on the exact
+ * centre point, where they would overlap into an unreadable blob.
+ */
+export const RSSI_AT_CENTRE = -40;
+export const RSSI_AT_RIM = -100;
+export const MIN_RADIUS = 0.08;
+
+export function normalisedRadius(rssi: number): number {
+  const t = (RSSI_AT_CENTRE - rssi) / (RSSI_AT_CENTRE - RSSI_AT_RIM);
+  return Math.min(1, Math.max(MIN_RADIUS, t));
+}
+
+/** Band boundaries as radii, for the range rings. */
+export const BAND_RADII: { band: Band; radius: number }[] = [
+  { band: 'immediate', radius: normalisedRadius(-55) },
+  { band: 'near', radius: normalisedRadius(-70) },
+  { band: 'far', radius: normalisedRadius(-85) },
+  { band: 'distant', radius: 1 },
+];

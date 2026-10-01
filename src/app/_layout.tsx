@@ -1,5 +1,6 @@
 import { DarkTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router/stack';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { colors } from '@/theme/colors';
 
@@ -18,7 +19,10 @@ const theme = {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider value={theme}>
+    // Required by gesture-handler. Without it gestures silently do nothing —
+    // no error, no warning.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={theme}>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -29,7 +33,8 @@ export default function RootLayout() {
           name="device/[id]"
           options={{ headerShown: true, title: 'Device' }}
         />
-      </Stack>
-    </ThemeProvider>
+        </Stack>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
