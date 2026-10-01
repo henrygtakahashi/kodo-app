@@ -46,3 +46,23 @@ export const BAND_RADII: { band: Band; radius: number }[] = [
   { band: 'far', radius: normalisedRadius(-85) },
   { band: 'distant', radius: 1 },
 ];
+
+export type Trend = 'approaching' | 'receding' | 'steady';
+
+/** Movement must clear the noise floor before it is called movement. */
+export const TREND_THRESHOLD_DB = 3;
+
+/**
+ * Compares the recent half of the history against the older half. Comparing
+ * single endpoints would report noise as movement; RSSI swings +/-10 dBm on a
+ * device that is not moving at all.
+ */
+export function trendOf(history: number[]): Trend {
+  if (history.length < 8) return 'steady';
+  const split = Math.floor(history.length / 2);
+  const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
+  const delta = mean(history.slice(split)) - mean(history.slice(0, split));
+  if (delta > TREND_THRESHOLD_DB) return 'approaching';
+  if (delta < -TREND_THRESHOLD_DB) return 'receding';
+  return 'steady';
+}

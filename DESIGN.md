@@ -122,50 +122,50 @@ all satisfied.
 
 ---
 
-## 4. Render the radar in Skia, not composed views
+## 4. Signal traces in Skia, not a radar
 
-**One `<Canvas>` for the entire radar.** This is the core design decision.
+**The radar is removed.** A circle with blips at angles reads as 2D position
+however the caption is worded — the *form* made a claim the data cannot support.
+BLE gives distance, not bearing, so the display encodes exactly one measured
+quantity per device and how it changes.
 
-A radar built from `<View>`s hits a wall immediately: 30 blips × pulse rings ×
-per-device trails is 100+ nodes, each an `Animated.View`, each an elevation
-shadow. It dies on mid-range Android.
+### The signal wall
 
-Skia is one native node and draws everything inside it, on the UI thread. That
-unlocks what nobody else ships: blips that bloom and fade on RSSI change,
-concentric pulses, proximity-band rings, per-device trails showing approach and
-retreat, signal noise as real texture.
+One row per device: label, an RSSI-over-time trace, the current dBm, a trend
+mark. **Time is a real axis**, so nothing on screen is invented. Rising means
+closer.
+
+| Channel | Encodes | Real? |
+|---|---|---|
+| Trace Y | smoothed RSSI, fixed −40…−100 scale | **Yes** |
+| Trace X | time, last 20 s | **Yes** |
+| Row order | signal rank | **Yes** |
+| — | *no spatial channel exists* | — |
+
+The Y scale is fixed, not per-row auto-scaled: auto-scaling would make rows
+incomparable and magnify noise into apparent movement.
+
+History is sampled on a fixed 4 Hz clock, never per packet. Sampling on arrival
+would make the x-axis a function of how chattily each device advertises rather
+than of time.
+
+Trend compares the mean of the recent half of the window against the older half
+and needs 3 dBm to register. Comparing endpoints would report the ±10 dBm noise
+floor as movement.
+
+### Why it is still one Skia canvas
+
+The original reason survives the redesign: a canvas per row means one native
+surface per device, which is what kills a list like this. One `<Canvas>` draws
+every trace, positioned by row index, with the labels and readouts as ordinary
+views above it.
+
+Trace samples live in shared values written from a store subscription and the
+path is rebuilt in a worklet, so a signal change never re-renders React.
 
 **Skia is also the blur.** Platform blur is unavailable on Android, so glow and
 bloom are drawn with Skia's GPU blur shaders — real blur, not a fallback, and one
 render path instead of per-platform compositing.
-
-### Positioning model — pulses, not a sweep
-
-BLE on a single-antenna phone gives **distance, not direction**. There is no
-bearing to a device, so the radar is a proximity hunter, not a compass.
-
-| Axis | Source | Real? |
-|---|---|---|
-| Radius | smoothed RSSI → proximity band | **Yes** |
-| Angle | deterministic hash of device id | **No** — stable, but carries no meaning |
-
-- **No rotating sweep line.** A sweep implies directional sampling the hardware
-  never performs. Concentric pulses expanding outward read as *range* instead,
-  which is what is actually being measured.
-- **Angle must be stable** across frames and sessions so a blip never jumps.
-  Hashing the device id gives that for free, at zero cost.
-- **Bands, not metres** — immediate / near / far / distant. RSSI does not support
-  a precise number and showing one is a lie.
-- **Thresholds are fixed, not auto-scaled.** Auto-scaling to the furthest visible
-  device would make a blip's radius depend on *other* devices — walking toward
-  your target while a nearer device appears would push the target outward,
-  destroying "inward means approaching". Radius stays a pure function of that
-  device's own smoothed RSSI. Starting thresholds, to calibrate on device:
-  immediate > −55 dBm · near −55 to −70 · far −70 to −85 · distant < −85.
-- The UI must never imply directional accuracy it does not have.
-
-What the motion has to convey is **trend and rate**: inward means approaching.
-That legibility is the feature — not position.
 
 ---
 

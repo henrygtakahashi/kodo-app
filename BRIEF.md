@@ -138,62 +138,40 @@ position across sessions and becomes recognisable by sight.
 
 ---
 
-## 2. Radar — Visual Spatial Tracker
+## 2. Signal — Proximity Trend Tracker
 
-**Purpose:** find a specific device by moving, rather than by reading numbers.
+**Purpose:** find a device by moving, rather than by reading numbers.
 
 ### The constraint that defines this feature
 
 **BLE on a single-antenna phone gives distance, not direction.** There is no
-bearing to a device. Any radar that shows a device at a compass position is
-inventing it.
+bearing to a device. The first design was a radar; it was cut because the shape
+itself asserts a position the data cannot support, and a disclaimer does not undo
+what a circle of blips communicates.
 
-v1.0 is therefore honest about what it is: **a proximity hunter, not a compass.**
-Radius is real (signal-derived). Angle is not.
+What replaced it encodes one measured quantity and its change over time:
 
-Consequences, all load-bearing:
+- One row per device: label, RSSI trace over the last 20 s, current dBm, trend.
+- **Rising trace = getting closer.** That is the whole interaction.
+- Fixed −40…−100 dBm scale across all rows, so rows are comparable.
+- Rows ordered by signal; stale rows dim rather than vanish.
+- Tap a row for the device detail screen.
 
-- **Angle is deterministic per device**, derived from a hash of its id — stable
-  across frames and sessions, so a blip never jumps. It carries no spatial
-  meaning and the UI must not imply otherwise.
-- **Radius is smoothed RSSI** mapped to proximity bands (immediate / near / far /
-  distant), not a false-precision metre reading.
-- **No rotating sweep line** — it implies directional sampling. Concentric pulses
-  expanding outward read as *range* instead. Approved and recorded in
-  [DESIGN.md §4](./DESIGN.md#4-render-the-radar-in-skia-not-composed-views).
+No metres, no angles, no position. See DESIGN.md §4.
 
-### What makes it actually useful
+### What makes it useful
 
-Hot/cold hunting. Walking changes RSSI; the radar makes that change legible at a
-glance. The valuable signals are **trend and rate**, not position:
-
-- Blip moves inward/outward as you approach or retreat
-- A short trail showing the last few seconds of approach
-- Single-device focus mode — tap a blip to lock onto it, everything else recedes
-- Haptic or visual confirmation on entering the nearest band
-
-### UX surface
-
-- One Skia `<Canvas>` for the whole scene (see DESIGN.md §4)
-- Proximity band rings with band labels, not numeric distances
-- **Tap a blip = focus it** (target lock). This is the radar's primary action —
-  hunting is the feature, so the cheapest gesture serves it.
-- The focused device raises a compact card; **tapping that card** navigates to
-  `device/[id]`. Detail is deliberately the secondary action, one level removed.
-- Tap the empty canvas to clear focus
-- Reuses the Scanner's gate chain unchanged
-
-Tap cannot both toggle canvas focus and navigate, so focus wins the tap and detail
-moves to the card. Long-press is not used for detail — it is undiscoverable for the
-primary path a user needs.
+Trend, not position. Walking changes RSSI; the wall makes that change legible at
+a glance and lets you compare several devices at once while you move.
 
 ### Acceptance criteria
 
-- Holds frame rate with 30+ blips on a release build on the slowest target device.
+- Holds frame rate with 30+ traces on a release build on the slowest target
+  device.
 - The advertisement stream never re-renders React — the §0 contract holds.
-- Blips do not jitter when a device is stationary (smoothing is doing its job).
-- Walking toward a device produces unmistakable inward motion within ~2 seconds.
-- The UI never implies directional accuracy it does not have.
+- A stationary device draws a visibly flat trace; noise must not read as motion.
+- Walking toward a device produces an unmistakable rise within ~2 seconds.
+- Nothing in the UI implies direction or distance in metres.
 
 ---
 

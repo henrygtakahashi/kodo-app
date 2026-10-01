@@ -14,8 +14,8 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Label>Scanner</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="radar">
-          <NativeTabs.Trigger.Icon sf="scope" md="radar" />
-          <NativeTabs.Trigger.Label>Radar</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf="waveform.path.ecg" md="show_chart" />
+          <NativeTabs.Trigger.Label>Signal</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
     </BleProvider>

@@ -8,6 +8,8 @@ import { getBleManager } from './manager';
 const FLUSH_MS = 125;
 /** 1 Hz. Ages out absences — a separate job, so a separate clock. */
 const SWEEP_MS = 1_000;
+/** 4 Hz. Samples history on a fixed clock so the trace's x-axis is real time. */
+const HISTORY_MS = 250;
 /**
  * Android blocks an app that starts LE scans too often (5 starts in 30 s), and
  * a failed start never recovers on its own — the callback fires once and that
@@ -86,10 +88,13 @@ export function useScan(enabled: boolean) {
       state.recomputeOrder();
     }, SWEEP_MS);
 
+    const history = setInterval(() => useDeviceStore.getState().sampleHistory(), HISTORY_MS);
+
     return () => {
       clearTimeout(retryTimer);
       clearInterval(flush);
       clearInterval(sweep);
+      clearInterval(history);
       manager.stopDeviceScan();
       pending.current.clear();
       // Deliberately no reset: pausing must keep the list readable. Entries

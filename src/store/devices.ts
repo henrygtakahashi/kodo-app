@@ -31,6 +31,15 @@ export const ORDER_COOLDOWN_MS = 3_000;
  */
 export const SIGNAL_BUCKET_DB = 4;
 
+/**
+ * History is sampled on a fixed clock, not per packet. The x-axis is time, so
+ * the points must be evenly spaced — sampling on arrival would make the axis a
+ * function of how chattily each device advertises.
+ */
+export const HISTORY_HZ = 4;
+export const HISTORY_SECONDS = 20;
+export const HISTORY_LENGTH = HISTORY_HZ * HISTORY_SECONDS;
+
 export type Staleness = 'live' | 'stale';
 
 /**
@@ -120,6 +129,8 @@ export type DeviceRecord = {
   smoothed: number;
   lastSeen: number;
   staleness: Staleness;
+  /** Smoothed RSSI sampled at HISTORY_HZ, oldest first. */
+  history: number[];
   advertisement: Advertisement;
   /**
    * Every scan callback for this device, counted before coalescing. The flush
@@ -167,6 +178,7 @@ type DevicesState = {
 
   merge: (pending: Map<string, PendingDevice>) => void;
   sweepStale: () => void;
+  sampleHistory: () => void;
   recomputeOrder: (force?: boolean) => void;
   setFrozen: (frozen: boolean) => void;
   setScanning: (scanning: boolean) => void;
@@ -203,6 +215,7 @@ function createRecord(device: Device, rssi: number, now: number, packets: number
     smoothed: rssi,
     lastSeen: now,
     staleness: 'live',
+    history: [rssi],
     advertisement: advertisementOf(device),
     packets,
   };
@@ -327,6 +340,28 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
     // Writing unconditionally would re-render every subscriber once a second
     // for nothing.
     if (changed) set(removed ? { devices, membershipDirty: true } : { devices });
+  },
+
+  /**
+   * Appends one point per device per tick, including devices that went quiet —
+   * a flat trace is information, and a gap would misread as "no data" rather
+   * than "no change".
+   */
+  sampleHistory: () => {
+    const current = get().devices;
+    const ids = Object.keys(current);
+    if (ids.length === 0) return;
+
+    const devices: Record<string, DeviceRecord> = {};
+    for (const id of ids) {
+      const record = current[id];
+      const history = [...record.history, record.smoothed];
+      devices[id] = {
+        ...record,
+        history: history.length > HISTORY_LENGTH ? history.slice(-HISTORY_LENGTH) : history,
+      };
+    }
+    set({ devices });
   },
 
   recomputeOrder: (force = false) => {

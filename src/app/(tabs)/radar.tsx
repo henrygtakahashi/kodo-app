@@ -2,12 +2,12 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useBle } from '@/ble/ble-provider';
 import { GateNotice } from '@/components/gate-notice';
-import { RadarCanvas } from '@/components/radar-canvas';
 import { Screen } from '@/components/screen';
+import { SignalWall } from '@/components/signal-wall';
 import { useDeviceStore } from '@/store/devices';
 import { colors } from '@/theme/colors';
 
-export default function RadarScreen() {
+export default function SignalScreen() {
   const { gate } = useBle();
   const count = useDeviceStore((state) => state.order.length);
 
@@ -16,17 +16,14 @@ export default function RadarScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Radar</Text>
+        <Text style={styles.title}>Signal</Text>
         <Text style={styles.count}>{count} tracked</Text>
       </View>
 
-      <RadarCanvas />
+      <SignalWall />
 
-      {/* Stated outright, because a radar that shows position is the one thing
-          this cannot do. Radius is signal-derived and real; angle is a stable
-          hash and means nothing (DESIGN.md §4). */}
-      <Text style={styles.disclaimer}>
-        Distance only — bearing is not measurable over BLE. Move and watch a blip travel inward.
+      <Text style={styles.hint}>
+        Rising trace means you are getting closer. Walk, and watch which one climbs.
       </Text>
     </Screen>
   );
@@ -36,11 +33,11 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   title: { color: colors.textPrimary, fontSize: 28, fontWeight: '700' },
   count: { color: colors.textTertiary, fontSize: 14 },
-  disclaimer: {
+  hint: {
     color: colors.textTertiary,
     fontSize: 11,
     textAlign: 'center',
-    paddingBottom: 8,
+    paddingVertical: 8,
     lineHeight: 16,
   },
 });
