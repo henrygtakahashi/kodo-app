@@ -1,14 +1,19 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useBleGate } from '@/ble/use-ble-gate';
+import { GateNotice } from '@/components/gate-notice';
 import { colors } from '@/theme/colors';
 
 // Scanner is the "/" route: v1.0 is built Scanner-first (BRIEF.md §4).
-// Placeholder — the gate chain (BRIEF.md §0) lands here next.
 export default function ScannerScreen() {
+  const gate = useBleGate();
+
+  if (gate.status !== 'ready') return <GateNotice gate={gate} />;
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Scanner</Text>
-      <Text style={styles.body}>Discovery & diagnostics. Passive listening only.</Text>
+      <Text style={styles.body}>Gate open. Device list lands next.</Text>
     </View>
   );
 }
