@@ -162,8 +162,8 @@ a chart.
 ### Surface
 
 - One target, chosen from the device detail screen ("Hunt this device").
-- A dial: arc fill and colour follow signal strength, with the dBm reading, the
-  band, and the trend state (WARMER / COLDER / HOLDING).
+- A moving-coil meter: needle position and colour follow signal strength, with
+  the dBm reading, the band, and the trend state (WARMER / COLDER / HOLDING).
 - "strongest N dBm · Ns ago" — the best reading in the window and how long since,
   so you can tell whether you have already walked past it.
 - The RSSI trace as supporting detail, not the main event.
@@ -178,7 +178,7 @@ a chart.
 - Readable at arm's length while walking.
 - The advertisement stream never re-renders React — the §0 contract holds.
 - A stationary device reads HOLDING; noise must not read as motion.
-- Walking toward the target moves the dial unmistakably within ~2 seconds.
+- Walking toward the target moves the needle unmistakably within ~2 seconds.
 - One haptic per band crossing, never per frame.
 - Nothing implies direction or distance in metres.
 

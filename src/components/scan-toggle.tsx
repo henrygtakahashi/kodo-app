@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useDeviceStore } from '@/store/devices';
-import { colors } from '@/theme/colors';
+import { useTheme } from '@/theme/use-theme';
+import type { Palette } from '@/theme/themes';
 
 /**
  * Start/stop is user intent only. The gate still has the final say — this
@@ -10,6 +12,8 @@ import { colors } from '@/theme/colors';
 export function ScanToggle() {
   const scanning = useDeviceStore((state) => state.scanning);
   const setScanning = useDeviceStore((state) => state.setScanning);
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
 
   return (
     <Pressable
@@ -27,22 +31,23 @@ export function ScanToggle() {
   );
 }
 
-const styles = StyleSheet.create({
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  pillActive: { borderColor: colors.signal, backgroundColor: colors.surfaceRaised },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  dotLive: { backgroundColor: colors.signal },
-  dotPaused: { backgroundColor: colors.textTertiary },
-  label: { color: colors.textSecondary, fontSize: 13 },
-  labelActive: { color: colors.signal, fontWeight: '600' },
-});
+const makeStyles = (t: Palette) =>
+  StyleSheet.create({
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surface,
+    },
+    pillActive: { borderColor: t.signal, backgroundColor: t.surfaceRaised },
+    dot: { width: 8, height: 8, borderRadius: 4 },
+    dotLive: { backgroundColor: t.signal },
+    dotPaused: { backgroundColor: t.textTertiary },
+    label: { color: t.textSecondary, fontSize: 13 },
+    labelActive: { color: t.signal, fontWeight: '600' },
+  });

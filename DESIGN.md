@@ -259,64 +259,63 @@ Gesture handoff and haptic timing cannot be judged from code.
 
 ## 8. Design tokens
 
-Amber CRT. Values are computed against the ground, not estimated; re-run the
-check in `src/theme/colors.ts` before changing one.
+Two palettes, one identity: amber CRT on a dark ground, and the same amber
+pressed into warm paper. The user picks in Settings; `src/theme/themes.ts` holds
+both and `useTheme()` serves the active one.
 
-### Colour
+Every ratio is computed against that palette's own ground — text at 4.5:1,
+non-text graphics at 3:1. Three palettes in a row had a first draft whose faint
+end failed, so the check now runs before values land.
+
+### Night (default)
 
 | Token | Value | On `bg` |
 |---|---|---|
 | `bg` | `#0A0705` | deep brown-black |
-| `surface` | `#16100B` | |
-| `surfaceRaised` | `#211810` | pressed |
-| `border` | `#2A1F14` | hairline |
-| `textPrimary` | `#F2D9A8` | 14.60:1 — AAA |
-| `textSecondary` | `#C9A878` | AAA |
-| `textTertiary` | `#A8855A` | 5.90:1 — AA |
-| `signal` | `#FFB224` | 11.14:1 — AAA |
-| `warning` | `#FF8A1F` | |
-| `danger` | `#FF6B35` | 7.08:1 — AA |
+| `surface` / `surfaceRaised` | `#16100B` / `#211810` | |
+| `border` | `#2A1F14` | |
+| `textPrimary` | `#F2D9A8` | 14.60 — AAA |
+| `textTertiary` | `#A8855A` | 5.90 — AA |
+| `signal` | `#FFB224` | 11.14 — AAA |
+| bands | `#FDAE26` `#EB9A0F` `#C38418` `#92661C` | 10.77 → 3.96 |
 
-### Proximity bands
+### Daylight
 
-Strongest is brightest on this dark ground.
-
-| Band | Value | On `bg` |
+| Token | Value | On `bg` |
 |---|---|---|
-| `immediate` | `#FDAE26` | 10.77 |
-| `near` | `#EB9A0F` | 8.76 |
-| `far` | `#C38418` | 6.35 |
-| `distant` | `#92661C` | 3.96 |
+| `bg` | `#F5F1E8` | warm paper |
+| `surface` / `surfaceRaised` | `#FFFFFF` / `#EBE5D8` | |
+| `border` | `#D8CFBC` | |
+| `textPrimary` | `#1C1710` | 15.80 — AAA |
+| `textTertiary` | `#6B5C45` | 5.75 — AA |
+| `signal` | `#8A5712` | 5.40 — AA |
+| bands | `#684508` `#845B15` `#997029` `#A27D3F` | 7.62 → 3.36 |
 
-The ramp drafted with this theme put `distant` at `#543A0D` — **1.90:1**, below
-the 3:1 floor for non-text graphics, so a distant device would have been
-effectively invisible. These values are solved against that floor instead.
-
-Amber gives about a 3.3x luminance spread (0.5129 → 0.1570), narrower than a
-green ramp on the same ground, so the band name and list position still carry
-the ordinal reading with colour reinforcing.
+**The ramp inverts between them.** On the dark ground the strongest band is the
+brightest; on paper it is the darkest. A light ground also caps the faint end —
+at 3:1 nothing lighter than relative luminance 0.2605 is legible on this paper —
+so the daylight ramp is compressed and colour carries less of the ordinal
+signal. Band name and list position carry it in both.
 
 Identity-chip hues are constrained to **24–58** so per-device colour stays inside
-the amber family and cannot fight the single-hue palette.
+the amber family in either palette.
 
 ### Type
 
-Scale: **11 · 12 · 14 · 15 · 17 · 28**.
-
-Numeric readouts use tabular figures — RSSI, intervals, hex. At 8 Hz a
-proportional face changes glyph widths as digits change, so the value visibly
-jitters and the row reflows. A correctness issue, not a stylistic one.
+Scale: **11 · 12 · 14 · 15 · 17 · 28**. Numeric readouts use tabular figures: at
+8 Hz a proportional face changes glyph widths as digits change, so the value
+jitters and the row reflows. Correctness, not style.
 
 ### Spacing, radius
 
 Spacing on a 4 grid: **4 · 6 · 8 · 10 · 16 · 24**.
-Radius: **3** (chips) · **10** (controls) · full (pills).
+Radius: **3** (chips, meter face) · **10** (controls) · full (pills).
 
 ### Native chrome
 
-The tab bar takes its colours from the platform theme, which on Android is
-Material blue. `NativeTabs` is given explicit `backgroundColor`, `tintColor`,
-`iconColor`, `indicatorColor` and `rippleColor`, or it fights the palette.
+`NativeTabs` takes its colours from the platform theme — Material blue on
+Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
+`indicatorColor` and `rippleColor` from the active palette.
 
 ---
 
@@ -324,15 +323,18 @@ Material blue. `NativeTabs` is given explicit `backgroundColor`, `tintColor`,
 
 **Resolved**
 
-- **Theme is amber CRT, dark, and dark-only.** `userInterfaceStyle: "dark"` with
-  `expo-system-ui`. No `useColorScheme` branch anywhere.
+- **Two palettes, user-selectable** in Settings — see §8. Night is the default.
+- **Hunt reads on a moving-coil meter**, not a progress ring: printed face,
+  etched scale, needle on a pivot with a counterweight tail. A needle shows a
+  value and its movement in one mark, has no notion of position, and its lag is
+  physical rather than decorative.
 - **Scanner is organised by cadence** — see §1 and §4.
-- **Tokens defined and contrast-verified** — see §8.
 - **Proximity bands: fixed thresholds** — see §4.
 
 **Still open**
 
+- **Theme choice is not persisted.** No storage dependency is installed, so it
+  resets to Night on a cold start. Needs fixing before release.
 - Dense cadence strips merge into a solid block above roughly 10 Hz. Density is
-  itself the signal, so this may be correct as-is; worth a look on a very chatty
-  beacon.
+  itself the signal, so this may be correct as-is.
 - App name is still a placeholder.

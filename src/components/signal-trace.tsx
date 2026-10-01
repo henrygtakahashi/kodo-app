@@ -4,7 +4,7 @@ import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 
 import { HISTORY_LENGTH, useDeviceStore } from '@/store/devices';
 import { RSSI_AT_CENTRE, RSSI_AT_RIM, bandFor } from '@/ble/signal';
-import { bands } from '@/theme/colors';
+import { getTheme } from '@/theme/use-theme';
 
 type Props = { id: string; x: number; y: number; width: number; height: number };
 
@@ -17,13 +17,13 @@ type Props = { id: string; x: number; y: number; width: number; height: number }
  */
 export function SignalTrace({ id, x, y, width, height }: Props) {
   const samples = useSharedValue<number[]>([]);
-  const colour = useSharedValue<string>(bands.distant);
+  const colour = useSharedValue<string>(getTheme().bands.distant);
 
   useEffect(() => {
     const read = (history: number[] | undefined, smoothed: number | undefined) => {
       if (!history) return;
       samples.set(history);
-      if (smoothed !== undefined) colour.set(bands[bandFor(smoothed)]);
+      if (smoothed !== undefined) colour.set(getTheme().bands[bandFor(smoothed)]);
     };
 
     const seed = useDeviceStore.getState().devices[id];

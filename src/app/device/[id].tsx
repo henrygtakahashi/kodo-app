@@ -1,13 +1,16 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { base64ToHex } from '@/ble/base64';
 import { bandFor } from '@/ble/signal';
 import { advertisingIntervalMs, useDeviceStore } from '@/store/devices';
-import { bands, chipFill, chipInk, colors, mono } from '@/theme/colors';
+import { useTheme } from '@/theme/use-theme';
+import type { Palette } from '@/theme/themes';
 
 function Row({ label, value }: { label: string; value: string | null }) {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -19,6 +22,8 @@ function Row({ label, value }: { label: string; value: string | null }) {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -28,6 +33,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Hex({ label, value }: { label: string; value: string | null }) {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   // Decoding is pure and the input rarely changes; recomputing it on every
   // render would redo the work at the store's update rate.
   const hex = useMemo(() => (value ? base64ToHex(value) : '—'), [value]);
@@ -47,6 +54,8 @@ function Hex({ label, value }: { label: string; value: string | null }) {
  * came from the advertisement (BRIEF.md §1).
  */
 export default function DeviceDetailScreen() {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const record = useDeviceStore((state) => state.devices[id]);
 
@@ -72,19 +81,19 @@ export default function DeviceDetailScreen() {
       <Stack.Screen options={{ title: record.identity.label }} />
 
       <View style={styles.hero}>
-        <View style={[styles.chip, { backgroundColor: chipFill(record.hue) }]}>
-          <Text style={[styles.chipText, { color: chipInk(record.hue) }]}>
+        <View style={[styles.chip, { backgroundColor: theme.chipFill(record.hue) }]}>
+          <Text style={[styles.chipText, { color: theme.chipInk(record.hue) }]}>
             {record.identity.suffix}
           </Text>
         </View>
         <View style={styles.heroBody}>
           <Text style={styles.heroTitle}>{record.identity.label}</Text>
-          <Text style={[styles.heroBand, { color: bands[band] }]}>
+          <Text style={[styles.heroBand, { color: theme.bands[band] }]}>
             {band} · {record.staleness === 'stale' ? 'not heard recently' : 'live'}
           </Text>
         </View>
         <View style={styles.heroSignal}>
-          <Text style={[styles.heroRssi, { color: bands[band] }]}>
+          <Text style={[styles.heroRssi, { color: theme.bands[band] }]}>
             {Math.round(record.smoothed)}
           </Text>
           <Text style={styles.heroUnit}>dBm</Text>
@@ -173,47 +182,48 @@ export default function DeviceDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+const makeStyles = (t: Palette) =>
+  StyleSheet.create({
+  screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: 16, gap: 16, paddingBottom: 48 },
-  empty: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 8 },
-  emptyTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '600' },
-  emptyBody: { color: colors.textSecondary, fontSize: 15, textAlign: 'center' },
+  empty: { flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 8 },
+  emptyTitle: { color: t.textPrimary, fontSize: 20, fontWeight: '600' },
+  emptyBody: { color: t.textSecondary, fontSize: 15, textAlign: 'center' },
 
   hero: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   chip: { width: 52, height: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  chipText: { fontSize: 14, fontFamily: mono, fontWeight: '700' },
+  chipText: { fontSize: 14, fontFamily: 'monospace', fontWeight: '700' },
   heroBody: { flex: 1, gap: 2 },
-  heroTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '700' },
+  heroTitle: { color: t.textPrimary, fontSize: 20, fontWeight: '700' },
   heroBand: { fontSize: 13 },
   heroSignal: { alignItems: 'flex-end' },
-  heroRssi: { fontSize: 26, fontFamily: mono, fontWeight: '700' },
-  heroUnit: { color: colors.textTertiary, fontSize: 11, fontFamily: mono },
+  heroRssi: { fontSize: 26, fontFamily: 'monospace', fontWeight: '700' },
+  heroUnit: { color: t.textTertiary, fontSize: 11, fontFamily: 'monospace' },
 
   section: { gap: 6 },
-  sectionTitle: { color: colors.textTertiary, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
+  sectionTitle: { color: t.textTertiary, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
   sectionBody: {
-    backgroundColor: colors.surface,
+    backgroundColor: t.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: t.border,
     paddingHorizontal: 12,
   },
   row: { flexDirection: 'row', gap: 12, paddingVertical: 10, alignItems: 'flex-start' },
-  rowLabel: { color: colors.textSecondary, fontSize: 13, width: 128 },
-  rowValue: { color: colors.textPrimary, fontSize: 13, fontFamily: mono, flex: 1 },
+  rowLabel: { color: t.textSecondary, fontSize: 13, width: 128 },
+  rowValue: { color: t.textPrimary, fontSize: 13, fontFamily: 'monospace', flex: 1 },
 
   hexBlock: { paddingVertical: 10, gap: 6 },
-  hex: { color: colors.textPrimary, fontSize: 12, fontFamily: mono, lineHeight: 18 },
+  hex: { color: t.textPrimary, fontSize: 12, fontFamily: 'monospace', lineHeight: 18 },
 
   hunt: {
     borderWidth: 1,
-    borderColor: colors.signal,
+    borderColor: t.signal,
     borderRadius: 10,
     paddingVertical: 13,
     alignItems: 'center',
   },
-  huntPressed: { backgroundColor: colors.surfaceRaised },
-  huntLabel: { color: colors.signal, fontSize: 15, fontWeight: '700' },
-  footnote: { color: colors.textTertiary, fontSize: 12, textAlign: 'center', marginTop: 4 },
+  huntPressed: { backgroundColor: t.surfaceRaised },
+  huntLabel: { color: t.signal, fontSize: 15, fontWeight: '700' },
+  footnote: { color: t.textTertiary, fontSize: 12, textAlign: 'center', marginTop: 4 },
 });

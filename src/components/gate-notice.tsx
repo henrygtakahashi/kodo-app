@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { getBleManager } from '@/ble/manager';
 import type { Gate } from '@/ble/use-ble-gate';
-import { colors } from '@/theme/colors';
+import { useTheme } from '@/theme/use-theme';
+import type { Palette } from '@/theme/themes';
 
 type Copy = {
   title: string;
@@ -61,13 +63,15 @@ const COPY: Record<Exclude<Gate['status'], 'ready'>, Copy> = {
 };
 
 export function GateNotice({ gate }: { gate: Gate }) {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   if (gate.status === 'ready') return null;
   const copy = COPY[gate.status];
   const busy = gate.status === 'checking' || gate.status === 'transient';
 
   return (
     <View style={styles.container}>
-      {busy ? <ActivityIndicator color={colors.signal} /> : null}
+      {busy ? <ActivityIndicator color={theme.signal} /> : null}
       <Text style={styles.title}>{copy.title}</Text>
       <Text style={styles.body}>{copy.body}</Text>
       {copy.action ? (
@@ -83,24 +87,25 @@ export function GateNotice({ gate }: { gate: Gate }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Palette) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: t.bg,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
     gap: 12,
   },
-  title: { color: colors.textPrimary, fontSize: 20, fontWeight: '600', textAlign: 'center' },
-  body: { color: colors.textSecondary, fontSize: 16, textAlign: 'center', lineHeight: 22 },
+  title: { color: t.textPrimary, fontSize: 20, fontWeight: '600', textAlign: 'center' },
+  body: { color: t.textSecondary, fontSize: 16, textAlign: 'center', lineHeight: 22 },
   button: {
     marginTop: 12,
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.signal,
+    borderColor: t.signal,
   },
-  buttonLabel: { color: colors.signal, fontSize: 16, fontWeight: '600' },
+  buttonLabel: { color: t.signal, fontSize: 16, fontWeight: '600' },
 });

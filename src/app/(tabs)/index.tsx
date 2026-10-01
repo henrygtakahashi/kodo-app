@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useBle } from '@/ble/ble-provider';
@@ -7,10 +8,13 @@ import { ScannerControls } from '@/components/scanner-controls';
 import { TransmitterList } from '@/components/transmitter-list';
 import { Screen } from '@/components/screen';
 import { useDeviceStore } from '@/store/devices';
-import { colors } from '@/theme/colors';
+import { useTheme } from '@/theme/use-theme';
+import type { Palette } from '@/theme/themes';
 
 // Scanner is the "/" route: v1.0 is built Scanner-first (BRIEF.md §4).
 export default function ScannerScreen() {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const { gate, scanError, retryScan } = useBle();
 
   // The list subscribes to the id array only. An RSSI change cannot re-render
@@ -80,15 +84,16 @@ export default function ScannerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Palette) =>
+  StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   subheader: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
-  title: { color: colors.textPrimary, fontSize: 28, fontWeight: '700' },
-  count: { color: colors.textTertiary, fontSize: 14 },
-  frozenNote: { color: colors.warning, fontSize: 12 },
+  title: { color: t.textPrimary, fontSize: 28, fontWeight: '700' },
+  count: { color: t.textTertiary, fontSize: 14 },
+  frozenNote: { color: t.warning, fontSize: 12 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  emptyLead: { color: colors.textPrimary, fontSize: 17, fontWeight: '600' },
-  emptyHint: { color: colors.textSecondary, fontSize: 14 },
+  emptyLead: { color: t.textPrimary, fontSize: 17, fontWeight: '600' },
+  emptyHint: { color: t.textSecondary, fontSize: 14 },
   errorRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -98,9 +103,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.danger,
-    backgroundColor: colors.surface,
+    borderColor: t.danger,
+    backgroundColor: t.surface,
   },
-  error: { color: colors.danger, fontSize: 13, flex: 1 },
-  retry: { color: colors.signal, fontSize: 13, fontWeight: '700' },
+  error: { color: t.danger, fontSize: 13, flex: 1 },
+  retry: { color: t.signal, fontSize: 13, fontWeight: '700' },
 });

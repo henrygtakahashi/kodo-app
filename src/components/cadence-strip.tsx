@@ -4,7 +4,7 @@ import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 
 import { bandFor } from '@/ble/signal';
 import { CADENCE_WINDOW_MS, useDeviceStore } from '@/store/devices';
-import { bands } from '@/theme/colors';
+import { getTheme } from '@/theme/use-theme';
 
 type Props = { id: string; x: number; y: number; width: number; height: number };
 
@@ -20,14 +20,14 @@ type Frame = { times: number[]; now: number };
  */
 export function CadenceStrip({ id, x, y, width, height }: Props) {
   const frame = useSharedValue<Frame>({ times: [], now: Date.now() });
-  const colour = useSharedValue<string>(bands.distant);
+  const colour = useSharedValue<string>(getTheme().bands.distant);
 
   useEffect(() => {
     const read = () => {
       const record = useDeviceStore.getState().devices[id];
       if (!record) return;
       frame.set({ times: record.arrivals, now: Date.now() });
-      colour.set(bands[bandFor(record.smoothed)]);
+      colour.set(getTheme().bands[bandFor(record.smoothed)]);
     };
 
     read();

@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@shopify/react-native-skia';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -8,10 +8,11 @@ import { useBle } from '@/ble/ble-provider';
 import { HISTORY_HZ, HISTORY_SECONDS, useDeviceStore } from '@/store/devices';
 import { bandFor, trendOf, type Band, type Trend } from '@/ble/signal';
 import { GateNotice } from '@/components/gate-notice';
-import { HuntGauge } from '@/components/hunt-gauge';
+import { HuntMeter } from '@/components/hunt-meter';
 import { Screen } from '@/components/screen';
 import { SignalTrace } from '@/components/signal-trace';
-import { bands, colors, mono } from '@/theme/colors';
+import { useTheme } from '@/theme/use-theme';
+import type { Palette } from '@/theme/themes';
 
 const GAUGE = 240;
 const TRACE_HEIGHT = 56;
@@ -22,10 +23,10 @@ const TREND_COPY: Record<Trend, string> = {
   steady: '·  HOLDING',
 };
 
-function trendColour(trend: Trend): string {
-  if (trend === 'approaching') return bands.immediate;
-  if (trend === 'receding') return colors.warning;
-  return colors.textSecondary;
+function trendColour(trend: Trend, t: Palette): string {
+  if (trend === 'approaching') return t.bands.immediate;
+  if (trend === 'receding') return t.warning;
+  return t.textSecondary;
 }
 
 type Reading = {
@@ -59,6 +60,8 @@ function read(id: string): Reading {
 }
 
 export default function HuntScreen() {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const { gate } = useBle();
   const targetId = useDeviceStore((state) => state.targetId);
   const setTarget = useDeviceStore((state) => state.setTarget);
@@ -73,6 +76,8 @@ export default function HuntScreen() {
  * again, which is the duplication this screen exists to avoid.
  */
 function Empty() {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <Screen>
       <Text style={styles.title}>Hunt</Text>
@@ -87,6 +92,8 @@ function Empty() {
 }
 
 function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const [reading, setReading] = useState(() => read(id));
   const lastBand = useRef<Band | null>(null);
 
@@ -140,16 +147,14 @@ function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
         </View>
       ) : (
         <View style={styles.instrument}>
-          <View style={styles.gaugeWrap}>
-            <HuntGauge id={id} size={GAUGE} />
-            <View style={styles.gaugeCentre} pointerEvents="none">
-              <Text style={[styles.dbm, { color: bands[reading.band] }]}>{reading.dbm}</Text>
-              <Text style={styles.unit}>dBm</Text>
-              <Text style={[styles.band, { color: bands[reading.band] }]}>{reading.band}</Text>
-            </View>
+          <HuntMeter id={id} width={GAUGE} />
+
+          <View style={styles.readout}>
+            <Text style={[styles.dbm, { color: theme.bands[reading.band] }]}>{reading.dbm}</Text>
+            <Text style={[styles.band, { color: theme.bands[reading.band] }]}>{reading.band}</Text>
           </View>
 
-          <Text style={[styles.trend, { color: trendColour(reading.trend) }]}>
+          <Text style={[styles.trend, { color: trendColour(reading.trend, theme) }]}>
             {TREND_COPY[reading.trend]}
           </Text>
 
@@ -175,30 +180,29 @@ function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Palette) =>
+  StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  title: { color: colors.textPrimary, fontSize: 24, fontWeight: '700', flex: 1 },
-  change: { color: colors.signal, fontSize: 14, fontWeight: '600' },
+  title: { color: t.textPrimary, fontSize: 24, fontWeight: '700', flex: 1 },
+  change: { color: t.signal, fontSize: 14, fontWeight: '600' },
 
   instrument: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  gaugeWrap: { width: GAUGE, height: GAUGE, alignItems: 'center', justifyContent: 'center' },
-  gaugeCentre: { position: 'absolute', alignItems: 'center' },
-  dbm: { fontSize: 64, fontFamily: mono, fontWeight: '700', lineHeight: 70 },
-  unit: { color: colors.textTertiary, fontSize: 12, fontFamily: mono, marginTop: -4 },
+  readout: { alignItems: 'center', gap: 2 },
+  dbm: { fontSize: 64, fontFamily: 'monospace', fontWeight: '700', lineHeight: 70 },
   band: { fontSize: 13, letterSpacing: 2, textTransform: 'uppercase', marginTop: 10 },
 
   trend: { fontSize: 18, fontWeight: '700', letterSpacing: 2, marginTop: 8 },
-  best: { color: colors.textTertiary, fontSize: 12, fontFamily: mono },
+  best: { color: t.textTertiary, fontSize: 12, fontFamily: 'monospace' },
 
   traceWrap: { width: 320, height: TRACE_HEIGHT, marginTop: 8 },
-  traceLabel: { color: colors.textTertiary, fontSize: 10, letterSpacing: 1 },
+  traceLabel: { color: t.textTertiary, fontSize: 10, letterSpacing: 1 },
 
   emptyBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  emptyLead: { color: colors.textPrimary, fontSize: 20, fontWeight: '600' },
-  emptyHint: { color: colors.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  emptyLead: { color: t.textPrimary, fontSize: 20, fontWeight: '600' },
+  emptyHint: { color: t.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22 },
 
   hint: {
-    color: colors.textTertiary,
+    color: t.textTertiary,
     fontSize: 11,
     textAlign: 'center',
     paddingVertical: 8,

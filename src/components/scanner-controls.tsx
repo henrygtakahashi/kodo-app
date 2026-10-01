@@ -1,8 +1,9 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useDeviceStore, type SortKey } from '@/store/devices';
-import { colors } from '@/theme/colors';
+import { useTheme } from '@/theme/use-theme';
+import type { Palette } from '@/theme/themes';
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'signal', label: 'Signal' },
@@ -23,6 +24,8 @@ function Chip({
   active: boolean;
   onPress: () => void;
 }) {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <Pressable
       onPress={onPress}
@@ -36,6 +39,8 @@ function Chip({
 }
 
 export const ScannerControls = memo(function ScannerControls() {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const sortKey = useDeviceStore((state) => state.sortKey);
   const setSortKey = useDeviceStore((state) => state.setSortKey);
   const query = useDeviceStore((state) => state.filters.query);
@@ -56,12 +61,12 @@ export const ScannerControls = memo(function ScannerControls() {
         value={query}
         onChangeText={(text) => setFilters({ query: text })}
         placeholder="Filter by name or address"
-        placeholderTextColor={colors.textTertiary}
+        placeholderTextColor={theme.textTertiary}
         autoCapitalize="none"
         autoCorrect={false}
         style={styles.search}
-        cursorColor={colors.signal}
-        selectionColor={colors.signal}
+        cursorColor={theme.signal}
+        selectionColor={theme.signal}
         clearButtonMode="while-editing"
       />
 
@@ -106,16 +111,17 @@ export const ScannerControls = memo(function ScannerControls() {
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: Palette) =>
+  StyleSheet.create({
   container: { gap: 8, paddingBottom: 4 },
   search: {
-    backgroundColor: colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: t.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: colors.textPrimary,
+    color: t.textPrimary,
     fontSize: 15,
   },
   row: { gap: 8, alignItems: 'center', paddingRight: 8 },
@@ -124,11 +130,11 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: t.border,
+    backgroundColor: t.surface,
   },
-  chipActive: { borderColor: colors.signal, backgroundColor: colors.surfaceRaised },
-  chipLabel: { color: colors.textSecondary, fontSize: 13 },
-  chipLabelActive: { color: colors.signal, fontWeight: '600' },
-  divider: { width: 1, height: 20, backgroundColor: colors.border, marginHorizontal: 2 },
+  chipActive: { borderColor: t.signal, backgroundColor: t.surfaceRaised },
+  chipLabel: { color: t.textSecondary, fontSize: 13 },
+  chipLabelActive: { color: t.signal, fontWeight: '600' },
+  divider: { width: 1, height: 20, backgroundColor: t.border, marginHorizontal: 2 },
 });

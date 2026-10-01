@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors } from '@/theme/colors';
+import { useTheme } from '@/theme/use-theme';
+import type { Palette } from '@/theme/themes';
 
 /**
  * Tab screens render under a transparent status bar (the root Stack sets
@@ -11,9 +13,12 @@ import { colors } from '@/theme/colors';
  */
 export function Screen({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return <View style={[styles.container, { paddingTop: insets.top }]}>{children}</View>;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 16, gap: 8 },
-});
+const makeStyles = (t: Palette) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bg, paddingHorizontal: 16, gap: 8 },
+  });
