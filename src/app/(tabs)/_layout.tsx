@@ -13,9 +13,9 @@ export default function TabsLayout() {
           />
           <NativeTabs.Trigger.Label>Scanner</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="radar">
-          <NativeTabs.Trigger.Icon sf="waveform.path.ecg" md="show_chart" />
-          <NativeTabs.Trigger.Label>Signal</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger name="hunt">
+          <NativeTabs.Trigger.Icon sf="location.north.line" md="my_location" />
+          <NativeTabs.Trigger.Label>Hunt</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
     </BleProvider>

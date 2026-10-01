@@ -163,6 +163,8 @@ type DevicesState = {
   sortKey: SortKey;
   filters: Filters;
   frozen: boolean;
+  /** The device Hunt is tracking. Survives tab switches; cleared on reset. */
+  targetId: string | null;
   /** User intent, not gate state. Scanning only runs when both allow it. */
   scanning: boolean;
   /**
@@ -182,6 +184,7 @@ type DevicesState = {
   recomputeOrder: (force?: boolean) => void;
   setFrozen: (frozen: boolean) => void;
   setScanning: (scanning: boolean) => void;
+  setTarget: (id: string | null) => void;
   setLegacyOnly: (legacyOnly: boolean) => void;
   setSortKey: (key: SortKey) => void;
   setFilters: (patch: Partial<Filters>) => void;
@@ -253,6 +256,7 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
   sortKey: 'signal',
   filters: { query: '', minRssi: null, namedOnly: false },
   frozen: false,
+  targetId: null,
   scanning: true,
   legacyOnly: false,
   lastOrderAt: 0,
@@ -409,6 +413,7 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
   },
 
   setFrozen: (frozen) => set({ frozen }),
+  setTarget: (targetId) => set({ targetId }),
 
   /**
    * Pausing keeps the list exactly as it stands. The sweep stops with the scan,
@@ -438,7 +443,8 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
     get().recomputeOrder(true);
   },
 
-  reset: () => set({ devices: {}, order: [], lastOrderAt: 0, membershipDirty: false }),
+  reset: () =>
+    set({ devices: {}, order: [], lastOrderAt: 0, membershipDirty: false, targetId: null }),
 }));
 
 export function bandOf(record: Pick<DeviceRecord, 'smoothed'>): Band {

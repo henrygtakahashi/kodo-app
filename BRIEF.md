@@ -138,40 +138,49 @@ position across sessions and becomes recognisable by sight.
 
 ---
 
-## 2. Signal — Proximity Trend Tracker
+## 2. Hunt — Single-Device Finder
 
-**Purpose:** find a device by moving, rather than by reading numbers.
+**Purpose:** find one specific device by moving.
 
-### The constraint that defines this feature
+### Why it is not a second list
 
-**BLE on a single-antenna phone gives distance, not direction.** There is no
-bearing to a device. The first design was a radar; it was cut because the shape
-itself asserts a position the data cannot support, and a disclaimer does not undo
-what a circle of blips communicates.
+The first attempt was a radar; cut because a circle of blips asserts a position
+BLE cannot measure. The second was a wall of RSSI traces; cut because it asked
+the same question Scanner already answers — "what is around me, and how strong
+is each" — and Scanner answers it better, with sort and filters.
 
-What replaced it encodes one measured quantity and its change over time:
+Hunt answers a different question: **where is *this* one**. That is a mode, not
+a chart.
 
-- One row per device: label, RSSI trace over the last 20 s, current dBm, trend.
-- **Rising trace = getting closer.** That is the whole interaction.
-- Fixed −40…−100 dBm scale across all rows, so rows are comparable.
-- Rows ordered by signal; stale rows dim rather than vanish.
-- Tap a row for the device detail screen.
+| | Scanner | Hunt |
+|---|---|---|
+| Question | what is around me | where is this one |
+| Devices | many | **one** |
+| Posture | standing, reading | walking, glancing |
+| Density | data-dense | one number, large |
 
-No metres, no angles, no position. See DESIGN.md §4.
+### Surface
 
-### What makes it useful
-
-Trend, not position. Walking changes RSSI; the wall makes that change legible at
-a glance and lets you compare several devices at once while you move.
+- One target, chosen from the device detail screen ("Hunt this device").
+- A dial: arc fill and colour follow signal strength, with the dBm reading, the
+  band, and the trend state (WARMER / COLDER / HOLDING).
+- "strongest N dBm · Ns ago" — the best reading in the window and how long since,
+  so you can tell whether you have already walked past it.
+- The RSSI trace as supporting detail, not the main event.
+- A haptic on each band crossing; a distinct, stronger one on reaching
+  `immediate`.
+- **No device list.** A picker here would be Scanner again, which is the
+  duplication this screen exists to avoid. With no target it says so in one
+  line.
 
 ### Acceptance criteria
 
-- Holds frame rate with 30+ traces on a release build on the slowest target
-  device.
+- Readable at arm's length while walking.
 - The advertisement stream never re-renders React — the §0 contract holds.
-- A stationary device draws a visibly flat trace; noise must not read as motion.
-- Walking toward a device produces an unmistakable rise within ~2 seconds.
-- Nothing in the UI implies direction or distance in metres.
+- A stationary device reads HOLDING; noise must not read as motion.
+- Walking toward the target moves the dial unmistakably within ~2 seconds.
+- One haptic per band crossing, never per frame.
+- Nothing implies direction or distance in metres.
 
 ---
 

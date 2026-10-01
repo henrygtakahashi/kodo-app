@@ -129,17 +129,19 @@ however the caption is worded — the *form* made a claim the data cannot suppor
 BLE gives distance, not bearing, so the display encodes exactly one measured
 quantity per device and how it changes.
 
-### The signal wall
+### Hunt, not a second list
 
-One row per device: label, an RSSI-over-time trace, the current dBm, a trend
-mark. **Time is a real axis**, so nothing on screen is invented. Rising means
-closer.
+The wall of traces that first replaced the radar was itself cut: a list of
+devices with RSSI is what Scanner already is, and a sparkline does not make it a
+different screen. Hunt shows **one** device — a dial, a trend state, and its
+trace — because finding a specific thing is a different mode, not a different
+chart.
 
 | Channel | Encodes | Real? |
 |---|---|---|
-| Trace Y | smoothed RSSI, fixed −40…−100 scale | **Yes** |
+| Arc fill | smoothed RSSI, fixed −40…−100 scale | **Yes** |
+| Trace Y | the same scale | **Yes** |
 | Trace X | time, last 20 s | **Yes** |
-| Row order | signal rank | **Yes** |
 | — | *no spatial channel exists* | — |
 
 The Y scale is fixed, not per-row auto-scaled: auto-scaling would make rows
@@ -153,12 +155,13 @@ Trend compares the mean of the recent half of the window against the older half
 and needs 3 dBm to register. Comparing endpoints would report the ±10 dBm noise
 floor as movement.
 
-### Why it is still one Skia canvas
+### Why it is still Skia
 
-The original reason survives the redesign: a canvas per row means one native
-surface per device, which is what kills a list like this. One `<Canvas>` draws
-every trace, positioned by row index, with the labels and readouts as ordinary
-views above it.
+Trace samples and the dial's fill live in shared values written from a store
+subscription, and both paths are rebuilt in worklets — a signal change never
+re-renders React. Should a multi-device trace view ever return, it must be a
+single `<Canvas>`: one per row is one native surface per device, which is what
+kills a list like that.
 
 Trace samples live in shared values written from a store subscription and the
 path is rebuilt in a worklet, so a signal change never re-renders React.

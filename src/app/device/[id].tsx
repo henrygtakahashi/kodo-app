@@ -1,6 +1,6 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { base64ToHex } from '@/ble/base64';
 import { bandFor } from '@/ble/signal';
@@ -90,6 +90,16 @@ export default function DeviceDetailScreen() {
           <Text style={styles.heroUnit}>dBm</Text>
         </View>
       </View>
+
+      <Pressable
+        style={({ pressed }) => [styles.hunt, pressed && styles.huntPressed]}
+        accessibilityRole="button"
+        onPress={() => {
+          useDeviceStore.getState().setTarget(record.id);
+          router.replace('/hunt');
+        }}>
+        <Text style={styles.huntLabel}>Hunt this device</Text>
+      </Pressable>
 
       <Section title="Signal">
         <Row label="Smoothed" value={`${Math.round(record.smoothed)} dBm`} />
@@ -196,5 +206,14 @@ const styles = StyleSheet.create({
   hexBlock: { paddingVertical: 10, gap: 6 },
   hex: { color: colors.textPrimary, fontSize: 12, fontFamily: mono, lineHeight: 18 },
 
+  hunt: {
+    borderWidth: 1,
+    borderColor: colors.signal,
+    borderRadius: 10,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  huntPressed: { backgroundColor: colors.surfaceRaised },
+  huntLabel: { color: colors.signal, fontSize: 15, fontWeight: '700' },
   footnote: { color: colors.textTertiary, fontSize: 12, textAlign: 'center', marginTop: 4 },
 });
