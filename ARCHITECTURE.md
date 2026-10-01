@@ -94,8 +94,9 @@ a fixed cadence:
 ```ts
 const pending = new Map<string, Device>()
 
-// 5–20 Hz — touches no store, no React
-manager.startDeviceScan(null, { allowDuplicates: true }, (err, d) => {
+// 5–20 Hz — touches no store, no React.
+// allowDuplicates is iOS-only; LowLatency is the Android equivalent.
+manager.startDeviceScan(null, { scanMode: ScanMode.LowLatency }, (err, d) => {
   if (d) pending.set(d.id, d)
 })
 
