@@ -213,7 +213,7 @@ src/app/
 ├── _layout.tsx           Stack (headerShown: false)
 ├── (tabs)/
 │   ├── _layout.tsx       NativeTabs — scanner + radar
-│   ├── scanner.tsx
+│   ├── index.tsx         Scanner (the "/" route — Expo Router needs one)
 │   └── radar.tsx
 └── device/
     └── [id].tsx          Stack screen, pushed over the tabs

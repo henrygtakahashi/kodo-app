@@ -134,30 +134,44 @@ This is the contract the render layer depends on — see
 
 ## 4. Expo Router entry point
 
-`expo-router@~57.0.24` is **installed** (with `react-native-screens`,
-`react-native-safe-area-context`, `expo-linking`, `expo-constants`), and
-`expo install` registered its config plugin in `app.json`. It is **not yet wired
-up**: the entry point still boots `App.tsx`, so the router is inert and there is no
-`src/app/` yet. Nothing is broken — the app runs exactly as before. Currently:
+`expo-router@~57.0.24` is **installed and wired up**:
 
-```jsonc
-// package.json
-"main": "index.ts"        // calls registerRootComponent(App) from App.tsx
+- `package.json` → `"main": "expo-router/entry"`
+- `app.json` → `"scheme": "bleapp"` (deep links into `device/[id]`, dev-client
+  linking). Prebuild emits both `bleapp` and `exp+ble-app` schemes.
+- `index.ts` and `App.tsx` are deleted; `src/app/_layout.tsx` is the entry.
+- `tsconfig.json` → `paths: { "@/*": ["./src/*"] }`
+
+`src/app/` (not `app/`) is the route root per AGENTS.md. Expo Router supports it:
+its `getRootDir()` matches `/[\\/]src[\\/]app$/`.
+
+**No `baseUrl`.** TypeScript 6.0.3 errors `TS5101: Option 'baseUrl' is deprecated`.
+With `moduleResolution: "bundler"`, `paths` resolves relative to the tsconfig, so
+`baseUrl` is unnecessary. Metro resolves the alias too — verified by a real
+`npx expo export --platform android` bundle, not just by typecheck.
+
+### Route tree
+
+```
+src/app/
+├── _layout.tsx           Stack, headerShown: false, dark theme
+├── (tabs)/
+│   ├── _layout.tsx       NativeTabs — Scanner + Radar
+│   ├── index.tsx         Scanner — the "/" route
+│   └── radar.tsx
+└── device/
+    └── [id].tsx          Stack screen with a header, pushed over the tabs
 ```
 
-Adopting the router requires:
+Scanner is `index.tsx`, not `scanner.tsx`: Expo Router requires a route matching
+`/`, and Scanner is the first screen built (§Why Scanner first in BRIEF.md).
 
-```jsonc
-"main": "expo-router/entry"   // verified present in expo-router@57.0.24 as entry.js
-```
+Imports: `Stack` from `expo-router/stack`, `NativeTabs` from
+`expo-router/unstable-native-tabs`, theme from `expo-router/react-navigation` —
+never `@react-navigation/*` directly on SDK 56+.
 
-`App.tsx` and `index.ts` are then replaced by `src/app/_layout.tsx`. Also add a
-`scheme` to `app.json` (e.g. `"scheme": "bleapp"`) — needed for deep links into
-`device/[id]` and for dev-client linking.
-
-This is a single atomic change; do it as the first step of building the navigation
-shell, not piecemeal. Until it happens, `expo-router` is a declared dependency with
-no routes — deliberate, not an oversight.
+Note: NativeTabs' `md=` icons pull in `@expo-google-fonts/material-symbols`
+(~967 KB) via expo-router's own dependencies. Expected, not a stray install.
 
 ---
 
@@ -184,7 +198,10 @@ Expo Go cannot load BLE at all — native dev builds only.
 `expo-constants@~57.0.20`. Typecheck clean, `expo-doctor` 21/21, Android prebuild
 clean with BLE permissions and dark theme intact.
 
-**Wired up:** BLE plugin, dark theme. **Not wired up:** `expo-router` (see §4).
+**Wired up:** BLE plugin, dark theme, `expo-router` navigation shell (§4).
+
+**Next:** Scanner gate chain (BRIEF.md §0) — permissions, adapter state, and a
+recoverable screen per failure. Screens under `(tabs)/` are placeholders.
 
 **Not yet installed:** the UI and animation stack — see
 [DESIGN.md §3](./DESIGN.md#3-stack).
