@@ -43,11 +43,82 @@ export type Identity = {
   suffix: string;
 };
 
-function companyFrom(manufacturerData: string | null): string | null {
-  if (!manufacturerData) return null;
+const APPLE_COMPANY_ID = 0x004c;
+
+/**
+ * Apple's manufacturer payload is a run of type-length-value segments after the
+ * company ID. Apple never advertises a device name — there is no "John's
+ * iPhone" to read, by design — but the type byte does say what the
+ * advertisement is for, which beats labelling every nearby Apple product
+ * "Apple".
+ *
+ * Types are stable and well documented from the wire; the payload contents
+ * inside each segment are not, so nothing here decodes past the type.
+ */
+const APPLE_TYPES: Record<number, string> = {
+  0x02: 'iBeacon',
+  0x05: 'AirDrop',
+  0x06: 'HomeKit accessory',
+  0x07: 'AirPods / Beats',
+  0x08: 'Hey Siri',
+  0x09: 'AirPlay target',
+  0x0a: 'AirPlay source',
+  0x0b: 'Magic Switch',
+  0x0c: 'Handoff',
+  0x0d: 'Tethering target',
+  0x0e: 'Tethering source',
+  0x0f: 'Nearby action',
+  0x10: 'Apple device nearby',
+  0x12: 'Find My',
+};
+
+/** 0x10 means only "an Apple device is near"; anything else says more. */
+const APPLE_GENERIC = 0x10;
+
+function appleDetail(bytes: Uint8Array): string | null {
+  let offset = 2; // skip the company ID
+  let generic: string | null = null;
+  let firstType: number | null = null;
+
+  while (offset + 1 < bytes.length) {
+    const type = bytes[offset];
+    const length = bytes[offset + 1];
+    if (firstType === null) firstType = type;
+
+    const name = APPLE_TYPES[type];
+    if (name) {
+      if (type !== APPLE_GENERIC) return name; // specific wins outright
+      generic = name;
+    }
+
+    // A zero length cannot be advanced past without looping forever. Seen in
+    // the field: 4c 00 01 00 00 ... — an undocumented type 0x01.
+    if (length === 0) break;
+    offset += 2 + length;
+  }
+
+  if (generic) return generic;
+
+  // Report the type rather than invent a meaning for it. This is a diagnostics
+  // tool, so "which Apple payload is this" is useful on its own, and an
+  // unrecognised type showing up in the field is how the table grows.
+  if (firstType !== null) return `Apple (type 0x${firstType.toString(16).padStart(2, '0')})`;
+  return null;
+}
+
+function parseManufacturer(
+  manufacturerData: string | null
+): { vendor: string | null; detail: string | null } {
+  if (!manufacturerData) return { vendor: null, detail: null };
+
   const bytes = decodeBase64(manufacturerData);
-  if (bytes.length < 2) return null;
-  return COMPANIES[bytes[0] | (bytes[1] << 8)] ?? null; // little-endian
+  if (bytes.length < 2) return { vendor: null, detail: null };
+
+  const company = bytes[0] | (bytes[1] << 8); // little-endian
+  const vendor = COMPANIES[company] ?? null;
+  const detail = company === APPLE_COMPANY_ID ? appleDetail(bytes) : null;
+
+  return { vendor, detail };
 }
 
 function typeFrom(serviceUUIDs: string[] | null): string | null {
@@ -66,7 +137,7 @@ function typeFrom(serviceUUIDs: string[] | null): string | null {
  * Derived once when a device is first seen; none of these change afterwards.
  */
 export function deriveIdentity(device: Device): Identity {
-  const vendor = companyFrom(device.manufacturerData);
+  const { vendor, detail } = parseManufacturer(device.manufacturerData);
   const inferred = typeFrom(device.serviceUUIDs);
   const suffix = device.id.replace(/:/g, '').slice(-4).toUpperCase();
 
@@ -74,6 +145,7 @@ export function deriveIdentity(device: Device): Identity {
     device.name?.trim() ||
     device.localName?.trim() ||
     inferred ||
+    detail ||
     vendor ||
     'Unknown device';
 
