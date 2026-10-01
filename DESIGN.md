@@ -41,18 +41,32 @@ sorted list. Three separate subscriptions, not one:
 
 | Subscribes to | Cadence | Re-renders |
 |---|---|---|
-| Ordered array of device **ids** | ~1 Hz, suspended while the list is touched | the list |
+| Ordered array of device **ids** | 3 s cooldown, suspended while the list is touched | the list |
 | That device's own `rssi` | 8 Hz | one row's readout cell |
 | Nothing — Reanimated shared values | every frame | nothing |
+
+Membership changes (a device appears or expires) bypass the cooldown and land
+within one 1 Hz sweep; only *reordering* waits. Explicit sort and filter changes
+bypass it too — a control that takes 3 s to answer reads as broken.
 
 The list container subscribes to an **id array only**, so an RSSI change cannot
 re-render it. Each row selects its own value
 (`useDeviceStore(s => s.devices[id]?.rssi)`), so a tick repaints one dBm cell.
 
-Re-sort cadence is capped at ~1 Hz and paused on touch for a **UX** reason ahead of
-a performance one: a signal-sorted list reordering 8×/sec moves rows out from under
+Re-sort cadence is capped and paused on touch for a **UX** reason ahead of a
+performance one: a signal-sorted list reordering 8×/sec moves rows out from under
 the user's finger. Freezing order while scrolling costs nothing and is what makes
 the sort usable at all.
+
+**Cadence alone is not enough.** Raw RSSI swings ±10 dBm, so two devices of
+similar strength trade places on *every* recompute no matter how slow it is. The
+signal key is therefore quantized to 4 dBm buckets, with the row's previous
+position as the tiebreaker inside a bucket. `last-seen` is bucketed to whole
+seconds for the same reason.
+
+Bucketing, not an "ignore differences under N" comparator: that comparator is
+intransitive (a≈b, b≈c, yet a<c), and `Array.sort` is explicitly undefined for an
+inconsistent comparator. Bucket-then-tiebreak stays transitive.
 
 ---
 

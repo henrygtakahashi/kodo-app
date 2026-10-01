@@ -44,6 +44,9 @@ export function useScan(enabled: boolean) {
       pending.current.clear();
     }, FLUSH_MS);
 
+    // Expiry needs 1 Hz resolution; reordering does not, and at 1 Hz it makes
+    // the list churn. recomputeOrder enforces its own cooldown and only
+    // bypasses it when membership changed (ORDER_COOLDOWN_MS in the store).
     const sweep = setInterval(() => {
       const state = useDeviceStore.getState();
       state.sweepStale();
