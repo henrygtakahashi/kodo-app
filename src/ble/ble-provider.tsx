@@ -4,7 +4,7 @@ import { useDeviceStore } from '@/store/devices';
 import { useBleGate, type Gate } from './use-ble-gate';
 import { useScan } from './use-scan';
 
-type BleContextValue = { gate: Gate; scanError: string | null };
+type BleContextValue = { gate: Gate; scanError: string | null; retryScan: () => void };
 
 const BleContext = createContext<BleContextValue | null>(null);
 
@@ -18,10 +18,12 @@ const BleContext = createContext<BleContextValue | null>(null);
 export function BleProvider({ children }: { children: ReactNode }) {
   const gate = useBleGate();
   const scanning = useDeviceStore((state) => state.scanning);
-  const { error } = useScan(gate.status === 'ready' && scanning);
+  const { error, retry } = useScan(gate.status === 'ready' && scanning);
 
   return (
-    <BleContext.Provider value={{ gate, scanError: error }}>{children}</BleContext.Provider>
+    <BleContext.Provider value={{ gate, scanError: error, retryScan: retry }}>
+      {children}
+    </BleContext.Provider>
   );
 }
 

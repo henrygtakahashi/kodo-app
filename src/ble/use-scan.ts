@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScanMode, type Device } from 'react-native-ble-plx';
 
 import { useDeviceStore } from '@/store/devices';
@@ -8,6 +8,12 @@ import { getBleManager } from './manager';
 const FLUSH_MS = 125;
 /** 1 Hz. Ages out absences — a separate job, so a separate clock. */
 const SWEEP_MS = 1_000;
+/**
+ * Android blocks an app that starts LE scans too often (5 starts in 30 s), and
+ * a failed start never recovers on its own — the callback fires once and that
+ * is the end of it. Retry past the window rather than leaving the app dead.
+ */
+const RETRY_MS = 30_000;
 
 /**
  * Owns the scan lifecycle and the two timers from ARCHITECTURE.md §3.
@@ -19,12 +25,22 @@ const SWEEP_MS = 1_000;
 export function useScan(enabled: boolean) {
   const [error, setError] = useState<string | null>(null);
   const pending = useRef(new Map<string, Device>());
+  // ScanSettings are fixed when the scan starts, so changing this has to tear
+  // the scan down and start a new one — hence a dependency, not a read.
+  const legacyOnly = useDeviceStore((state) => state.legacyOnly);
+  const [attempt, setAttempt] = useState(0);
+
+  const retry = useCallback(() => {
+    setError(null);
+    setAttempt((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
 
     const manager = getBleManager();
     setError(null);
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     // allowDuplicates is iOS-only and does nothing here. On Android the
     // equivalent is LowLatency scan mode, which reports every advertisement
@@ -36,13 +52,19 @@ export function useScan(enabled: boolean) {
     // legacy advertisements should be returned", which reads either as "both"
     // or as "extended only" — measured on device: with false, every legacy
     // advertiser was still reported, so it means both.
-    manager.startDeviceScan(null, { scanMode: ScanMode.LowLatency, legacyScan: false }, (scanError, device) => {
-      if (scanError) {
-        setError(scanError.message);
-        return;
+    manager.startDeviceScan(
+      null,
+      { scanMode: ScanMode.LowLatency, legacyScan: legacyOnly },
+      (scanError, device) => {
+        if (scanError) {
+          setError(scanError.message);
+          // One pending retry at a time; the callback can fire repeatedly.
+          if (!retryTimer) retryTimer = setTimeout(() => setAttempt((n) => n + 1), RETRY_MS);
+          return;
+        }
+        if (device) pending.current.set(device.id, device);
       }
-      if (device) pending.current.set(device.id, device);
-    });
+    );
 
     const flush = setInterval(() => {
       if (pending.current.size === 0) return;
@@ -60,6 +82,7 @@ export function useScan(enabled: boolean) {
     }, SWEEP_MS);
 
     return () => {
+      clearTimeout(retryTimer);
       clearInterval(flush);
       clearInterval(sweep);
       manager.stopDeviceScan();
@@ -67,7 +90,7 @@ export function useScan(enabled: boolean) {
       // Deliberately no reset: pausing must keep the list readable. Entries
       // that really did go away expire on their own once the sweep resumes.
     };
-  }, [enabled]);
+  }, [enabled, legacyOnly, attempt]);
 
-  return { error };
+  return { error, retry };
 }

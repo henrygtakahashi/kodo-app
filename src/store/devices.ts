@@ -63,6 +63,13 @@ type DevicesState = {
   frozen: boolean;
   /** User intent, not gate state. Scanning only runs when both allow it. */
   scanning: boolean;
+  /**
+   * Scan setting, not a filter: it changes what the radio captures, not what
+   * the list shows. Restricts results to Bluetooth 4.x legacy advertisements,
+   * hiding BLE 5 extended advertisers entirely. Off by default — a scanner
+   * should see everything unless told otherwise.
+   */
+  legacyOnly: boolean;
   lastOrderAt: number;
   /** Set when an id is added or removed, so membership bypasses the cooldown. */
   membershipDirty: boolean;
@@ -72,6 +79,7 @@ type DevicesState = {
   recomputeOrder: (force?: boolean) => void;
   setFrozen: (frozen: boolean) => void;
   setScanning: (scanning: boolean) => void;
+  setLegacyOnly: (legacyOnly: boolean) => void;
   setSortKey: (key: SortKey) => void;
   setFilters: (patch: Partial<Filters>) => void;
   reset: () => void;
@@ -127,6 +135,7 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
   filters: { query: '', minRssi: null, namedOnly: false },
   frozen: false,
   scanning: true,
+  legacyOnly: false,
   lastOrderAt: 0,
   membershipDirty: false,
 
@@ -248,6 +257,16 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
    * seconds after the user pressed pause, which is the opposite of a snapshot.
    */
   setScanning: (scanning) => set({ scanning }),
+
+  /**
+   * Clears the list, unlike a filter. The captured set is about to change, so
+   * keeping devices found under the old settings would show results the current
+   * scan could not produce.
+   */
+  setLegacyOnly: (legacyOnly) => {
+    set({ legacyOnly });
+    get().reset();
+  },
 
   // Explicit user actions bypass the cooldown — a control that takes 3 s to
   // respond reads as broken.

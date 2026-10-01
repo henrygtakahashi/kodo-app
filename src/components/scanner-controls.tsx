@@ -42,6 +42,8 @@ export const ScannerControls = memo(function ScannerControls() {
   const minRssi = useDeviceStore((state) => state.filters.minRssi);
   const namedOnly = useDeviceStore((state) => state.filters.namedOnly);
   const setFilters = useDeviceStore((state) => state.setFilters);
+  const legacyOnly = useDeviceStore((state) => state.legacyOnly);
+  const setLegacyOnly = useDeviceStore((state) => state.setLegacyOnly);
 
   const cycleRssi = () => {
     const next = RSSI_STEPS[(RSSI_STEPS.indexOf(minRssi) + 1) % RSSI_STEPS.length];
@@ -88,6 +90,16 @@ export const ScannerControls = memo(function ScannerControls() {
           label="Named only"
           active={namedOnly}
           onPress={() => setFilters({ namedOnly: !namedOnly })}
+        />
+
+        <View style={styles.divider} />
+
+        {/* Not a filter: this changes what the radio captures, not what the
+            list shows, so it restarts the scan and clears the list. */}
+        <Chip
+          label="Legacy only (4.x)"
+          active={legacyOnly}
+          onPress={() => setLegacyOnly(!legacyOnly)}
         />
       </ScrollView>
     </View>
