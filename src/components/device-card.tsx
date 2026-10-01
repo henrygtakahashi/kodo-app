@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
@@ -42,7 +43,13 @@ export const DeviceCard = memo(function DeviceCard({ id }: { id: string }) {
   const stale = record.staleness === 'stale';
 
   return (
-    <Pressable style={[styles.card, stale && styles.stale]} accessibilityRole="button">
+    <Pressable
+      style={({ pressed }) => [styles.card, stale && styles.stale, pressed && styles.pressed]}
+      // Object form, not a template string: device ids are MAC addresses and
+      // the colons are reserved URI characters in a path segment.
+      onPress={() => router.push({ pathname: '/device/[id]', params: { id } })}
+      accessibilityRole="button"
+      accessibilityLabel={`${record.label}, ${record.smoothed} dBm`}>
       <View style={[styles.chip, { backgroundColor: `hsl(${record.hue}, 45%, 22%)` }]}>
         <Text style={[styles.chipText, { color: `hsl(${record.hue}, 70%, 70%)` }]}>
           {record.suffix}
@@ -96,6 +103,8 @@ const styles = StyleSheet.create({
   },
   // Dimmed, not removed: "not heard from recently" is not "gone".
   stale: { opacity: 0.45 },
+  // Feedback on press-in; full-width rows highlight rather than scale.
+  pressed: { backgroundColor: colors.surfaceRaised },
   chip: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontSize: 13, fontFamily: mono, fontWeight: '700' },
   body: { flex: 1, gap: 2 },

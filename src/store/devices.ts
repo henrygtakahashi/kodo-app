@@ -1,4 +1,7 @@
 import type { Device } from 'react-native-ble-plx';
+
+/** A device plus how many raw callbacks it produced since the last flush. */
+export type PendingDevice = { device: Device; count: number };
 import { create } from 'zustand';
 
 import { hueFor } from '@/ble/hash';
@@ -30,6 +33,18 @@ export const SIGNAL_BUCKET_DB = 4;
 
 export type Staleness = 'live' | 'stale';
 
+/** The advertisement as received, kept verbatim for the detail screen. */
+export type Advertisement = {
+  name: string | null;
+  localName: string | null;
+  manufacturerData: string | null;
+  rawScanRecord: string;
+  serviceUUIDs: string[] | null;
+  serviceData: Record<string, string> | null;
+  solicitedServiceUUIDs: string[] | null;
+  overflowServiceUUIDs: string[] | null;
+};
+
 export type DeviceRecord = {
   id: string;
   /** Static: derived once on first sight, never recomputed. */
@@ -44,7 +59,22 @@ export type DeviceRecord = {
   smoothed: number;
   lastSeen: number;
   staleness: Staleness;
+  advertisement: Advertisement;
+  /**
+   * Every scan callback for this device, counted before coalescing. The flush
+   * runs at 8 Hz, so counting at flush time would quantise the advertising
+   * interval to 125 ms and make it meaningless.
+   */
+  packets: number;
 };
+
+/** Mean advertising interval in ms, or null until there are two packets. */
+export function advertisingIntervalMs(record: DeviceRecord): number | null {
+  if (record.packets < 2) return null;
+  const span = record.lastSeen - record.firstSeen;
+  if (span <= 0) return null;
+  return Math.round(span / (record.packets - 1));
+}
 
 export type SortKey = 'signal' | 'name' | 'first-seen' | 'last-seen';
 
@@ -74,7 +104,7 @@ type DevicesState = {
   /** Set when an id is added or removed, so membership bypasses the cooldown. */
   membershipDirty: boolean;
 
-  merge: (pending: Map<string, Device>) => void;
+  merge: (pending: Map<string, PendingDevice>) => void;
   sweepStale: () => void;
   recomputeOrder: (force?: boolean) => void;
   setFrozen: (frozen: boolean) => void;
@@ -85,7 +115,20 @@ type DevicesState = {
   reset: () => void;
 };
 
-function createRecord(device: Device, rssi: number, now: number): DeviceRecord {
+function advertisementOf(device: Device): Advertisement {
+  return {
+    name: device.name,
+    localName: device.localName,
+    manufacturerData: device.manufacturerData,
+    rawScanRecord: device.rawScanRecord,
+    serviceUUIDs: device.serviceUUIDs,
+    serviceData: device.serviceData,
+    solicitedServiceUUIDs: device.solicitedServiceUUIDs,
+    overflowServiceUUIDs: device.overflowServiceUUIDs,
+  };
+}
+
+function createRecord(device: Device, rssi: number, now: number, packets: number): DeviceRecord {
   const identity = deriveIdentity(device);
   return {
     id: device.id,
@@ -99,6 +142,8 @@ function createRecord(device: Device, rssi: number, now: number): DeviceRecord {
     smoothed: rssi,
     lastSeen: now,
     staleness: 'live',
+    advertisement: advertisementOf(device),
+    packets,
   };
 }
 
@@ -150,19 +195,36 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
     const devices = { ...get().devices };
     let added = false;
 
-    pending.forEach((device, id) => {
+    pending.forEach(({ device, count }, id) => {
       const previous = devices[id];
       const rssi = device.rssi ?? previous?.rssi ?? -127;
       if (previous) {
+        // Replaced only when the payload actually changed. Rebuilding this
+        // object every flush would churn 8 Hz x N objects for nothing.
+        const changed = previous.advertisement.rawScanRecord !== device.rawScanRecord;
+
+        // A device does not put everything in every packet: the first one seen
+        // may carry a name and no manufacturer data, or the reverse. Identity
+        // is still derived once, but an incomplete one is upgraded when a
+        // richer packet arrives — bounded to payload changes, and only while
+        // something is still missing.
+        const incomplete = previous.identity.vendor === null || !previous.hasRealName;
+        const identity = changed && incomplete ? deriveIdentity(device) : previous.identity;
+
         devices[id] = {
           ...previous,
           rssi,
           smoothed: ema(previous.smoothed, rssi),
           lastSeen: now,
           staleness: 'live',
+          packets: previous.packets + count,
+          identity,
+          hasRealName:
+            previous.hasRealName || Boolean(device.name?.trim() || device.localName?.trim()),
+          advertisement: changed ? advertisementOf(device) : previous.advertisement,
         };
       } else {
-        devices[id] = createRecord(device, rssi, now);
+        devices[id] = createRecord(device, rssi, now, count);
         added = true;
       }
     });

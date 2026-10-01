@@ -24,3 +24,10 @@ export function decodeBase64(input: string): Uint8Array {
   }
   return bytes;
 }
+
+/** Hex dump for the detail screen's raw views. */
+export function base64ToHex(input: string): string {
+  return Array.from(decodeBase64(input))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join(' ');
+}

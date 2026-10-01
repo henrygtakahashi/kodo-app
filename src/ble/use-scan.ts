@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScanMode, type Device } from 'react-native-ble-plx';
+import { ScanMode } from 'react-native-ble-plx';
 
-import { useDeviceStore } from '@/store/devices';
+import { useDeviceStore, type PendingDevice } from '@/store/devices';
 import { getBleManager } from './manager';
 
 /** 8 Hz. Drains arrivals. */
@@ -24,7 +24,7 @@ const RETRY_MS = 30_000;
  */
 export function useScan(enabled: boolean) {
   const [error, setError] = useState<string | null>(null);
-  const pending = useRef(new Map<string, Device>());
+  const pending = useRef(new Map<string, PendingDevice>());
   // ScanSettings are fixed when the scan starts, so changing this has to tear
   // the scan down and start a new one — hence a dependency, not a read.
   const legacyOnly = useDeviceStore((state) => state.legacyOnly);
@@ -62,7 +62,12 @@ export function useScan(enabled: boolean) {
           if (!retryTimer) retryTimer = setTimeout(() => setAttempt((n) => n + 1), RETRY_MS);
           return;
         }
-        if (device) pending.current.set(device.id, device);
+        if (!device) return;
+        // Count every callback here, before coalescing: the flush runs at
+        // 8 Hz, so counting there would quantise the advertising interval to
+        // 125 ms and make it meaningless.
+        const seen = pending.current.get(device.id);
+        pending.current.set(device.id, { device, count: (seen?.count ?? 0) + 1 });
       }
     );
 
