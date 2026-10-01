@@ -29,7 +29,14 @@ export function useScan(enabled: boolean) {
     // allowDuplicates is iOS-only and does nothing here. On Android the
     // equivalent is LowLatency scan mode, which reports every advertisement
     // instead of coalescing in the system scanner.
-    manager.startDeviceScan(null, { scanMode: ScanMode.LowLatency }, (scanError, device) => {
+    //
+    // legacyScan maps to ScanSettings.setLegacy(). Its default, true, restricts
+    // results to Bluetooth 4.2-style legacy advertisements, so BLE 5 extended
+    // advertisers are invisible. Android documents the flag as "whether ONLY
+    // legacy advertisements should be returned", which reads either as "both"
+    // or as "extended only" — measured on device: with false, every legacy
+    // advertiser was still reported, so it means both.
+    manager.startDeviceScan(null, { scanMode: ScanMode.LowLatency, legacyScan: false }, (scanError, device) => {
       if (scanError) {
         setError(scanError.message);
         return;

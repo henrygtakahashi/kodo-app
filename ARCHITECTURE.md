@@ -96,7 +96,8 @@ const pending = new Map<string, Device>()
 
 // 5–20 Hz — touches no store, no React.
 // allowDuplicates is iOS-only; LowLatency is the Android equivalent.
-manager.startDeviceScan(null, { scanMode: ScanMode.LowLatency }, (err, d) => {
+// legacyScan: false also admits BLE 5 extended advertisers.
+manager.startDeviceScan(null, { scanMode: ScanMode.LowLatency, legacyScan: false }, (err, d) => {
   if (d) pending.set(d.id, d)
 })
 
