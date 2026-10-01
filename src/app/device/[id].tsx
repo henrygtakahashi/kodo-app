@@ -1,4 +1,5 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { base64ToHex } from '@/ble/base64';
@@ -27,11 +28,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Hex({ label, value }: { label: string; value: string | null }) {
+  // Decoding is pure and the input rarely changes; recomputing it on every
+  // render would redo the work at the store's update rate.
+  const hex = useMemo(() => (value ? base64ToHex(value) : '—'), [value]);
   return (
     <View style={styles.hexBlock}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.hex} selectable>
-        {value ? base64ToHex(value) : '—'}
+        {hex}
       </Text>
     </View>
   );
@@ -137,7 +141,19 @@ export default function DeviceDetailScreen() {
 
       <Section title="Raw">
         <Hex label="Manufacturer data" value={ad.manufacturerData} />
-        <Hex label="Scan record" value={ad.rawScanRecord} />
+        {ad.rawRecords.map((raw, index) => (
+          <Hex
+            key={raw}
+            // Devices alternate payloads; showing each variant is the honest
+            // view, and stops the section strobing between them.
+            label={
+              ad.rawRecords.length > 1
+                ? `Scan record ${index + 1} of ${ad.rawRecords.length}`
+                : 'Scan record'
+            }
+            value={raw}
+          />
+        ))}
       </Section>
 
       <Text style={styles.footnote}>

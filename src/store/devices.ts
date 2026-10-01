@@ -33,17 +33,78 @@ export const SIGNAL_BUCKET_DB = 4;
 
 export type Staleness = 'live' | 'stale';
 
-/** The advertisement as received, kept verbatim for the detail screen. */
+/**
+ * What a device has broadcast, accumulated across packets.
+ *
+ * Devices alternate payloads: a Galaxy Watch8 interleaves a manufacturer-data
+ * packet with a service-data one, every other advertisement. Keeping only the
+ * latest made the detail screen strobe between the two at the flush rate, and
+ * showed fields as absent that the device does broadcast. An advertisement is
+ * the union of what a device sends, not whichever packet arrived last.
+ */
 export type Advertisement = {
   name: string | null;
   localName: string | null;
   manufacturerData: string | null;
-  rawScanRecord: string;
   serviceUUIDs: string[] | null;
   serviceData: Record<string, string> | null;
   solicitedServiceUUIDs: string[] | null;
   overflowServiceUUIDs: string[] | null;
+  /** Distinct raw records seen, in first-seen order. Capped. */
+  rawRecords: string[];
 };
+
+const MAX_RAW_RECORDS = 4;
+
+function union(previous: string[] | null, next: string[] | null): string[] | null {
+  if (!next?.length) return previous;
+  if (!previous?.length) return next;
+  const merged = new Set([...previous, ...next]);
+  // Keep the old array when nothing was added, so selectors do not see a change.
+  return merged.size === previous.length ? previous : [...merged];
+}
+
+/** Non-null wins; a packet that omits a field must not erase it. */
+function mergeAdvertisement(previous: Advertisement, device: Device): Advertisement {
+  const record = device.rawScanRecord;
+  const rawRecords =
+    record && !previous.rawRecords.includes(record)
+      ? [...previous.rawRecords, record].slice(-MAX_RAW_RECORDS)
+      : previous.rawRecords;
+
+  const serviceUUIDs = union(previous.serviceUUIDs, device.serviceUUIDs);
+  const solicited = union(previous.solicitedServiceUUIDs, device.solicitedServiceUUIDs);
+  const overflow = union(previous.overflowServiceUUIDs, device.overflowServiceUUIDs);
+  const serviceData = device.serviceData
+    ? { ...(previous.serviceData ?? {}), ...device.serviceData }
+    : previous.serviceData;
+
+  const next: Advertisement = {
+    name: device.name ?? previous.name,
+    localName: device.localName ?? previous.localName,
+    manufacturerData: device.manufacturerData ?? previous.manufacturerData,
+    serviceUUIDs,
+    serviceData,
+    solicitedServiceUUIDs: solicited,
+    overflowServiceUUIDs: overflow,
+    rawRecords,
+  };
+
+  // Return the previous object when nothing was added. Without this the merge
+  // allocates on every flush and every advertisement selector fires at 8 Hz,
+  // which is the churn this whole change exists to remove.
+  const unchanged =
+    next.name === previous.name &&
+    next.localName === previous.localName &&
+    next.manufacturerData === previous.manufacturerData &&
+    next.serviceUUIDs === previous.serviceUUIDs &&
+    next.serviceData === previous.serviceData &&
+    next.solicitedServiceUUIDs === previous.solicitedServiceUUIDs &&
+    next.overflowServiceUUIDs === previous.overflowServiceUUIDs &&
+    next.rawRecords === previous.rawRecords;
+
+  return unchanged ? previous : next;
+}
 
 export type DeviceRecord = {
   id: string;
@@ -120,11 +181,11 @@ function advertisementOf(device: Device): Advertisement {
     name: device.name,
     localName: device.localName,
     manufacturerData: device.manufacturerData,
-    rawScanRecord: device.rawScanRecord,
     serviceUUIDs: device.serviceUUIDs,
     serviceData: device.serviceData,
     solicitedServiceUUIDs: device.solicitedServiceUUIDs,
     overflowServiceUUIDs: device.overflowServiceUUIDs,
+    rawRecords: device.rawScanRecord ? [device.rawScanRecord] : [],
   };
 }
 
@@ -199,9 +260,10 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
       const previous = devices[id];
       const rssi = device.rssi ?? previous?.rssi ?? -127;
       if (previous) {
-        // Replaced only when the payload actually changed. Rebuilding this
-        // object every flush would churn 8 Hz x N objects for nothing.
-        const changed = previous.advertisement.rawScanRecord !== device.rawScanRecord;
+        // A new object only when something was actually added, so selectors on
+        // the advertisement do not fire 8 Hz for an unchanged payload.
+        const advertisement = mergeAdvertisement(previous.advertisement, device);
+        const changed = advertisement !== previous.advertisement;
 
         // A device does not put everything in every packet: the first one seen
         // may carry a name and no manufacturer data, or the reverse. Identity
@@ -221,7 +283,7 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
           identity,
           hasRealName:
             previous.hasRealName || Boolean(device.name?.trim() || device.localName?.trim()),
-          advertisement: changed ? advertisementOf(device) : previous.advertisement,
+          advertisement,
         };
       } else {
         devices[id] = createRecord(device, rssi, now, count);
