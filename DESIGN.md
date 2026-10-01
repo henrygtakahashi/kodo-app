@@ -23,9 +23,11 @@ Devices broadcast on intervals from 20 ms to 10.24 s. A Microsoft beacon at
 2 s two lone ticks. The cadence identifies the kind of device before the name
 does, and no app on the store shows it. Every pixel of it is measured.
 
-The ground is paper, not near-black. Dark was the obvious choice for a scanner
-and also the generic one — and hunting happens outdoors, where a near-black
-screen is the hardest thing to read.
+The palette is amber CRT: deep brown-black ground, warm bone text, one amber.
+Monochrome by intent — proximity is ordinal, so it reads as a luminance ramp of
+a single hue rather than four unrelated colours. A paper ground was tried first
+and rejected: a green signal on light paper read as neither instrument nor
+document.
 
 ---
 
@@ -257,44 +259,45 @@ Gesture handoff and haptic timing cannot be judged from code.
 
 ## 8. Design tokens
 
-Daylight technical. Values are computed against the paper ground, not estimated;
-re-run the check in `src/theme/colors.ts` before changing one.
+Amber CRT. Values are computed against the ground, not estimated; re-run the
+check in `src/theme/colors.ts` before changing one.
 
 ### Colour
 
 | Token | Value | On `bg` |
 |---|---|---|
-| `bg` | `#F2F0EB` | paper |
-| `surface` | `#FFFFFF` | |
-| `surfaceRaised` | `#E7E3DA` | pressed |
-| `border` | `#D6D2C8` | hairline |
-| `textPrimary` | `#1A1814` | 15.56:1 — AAA |
-| `textSecondary` | `#4A453D` | 8.34:1 — AAA |
-| `textTertiary` | `#655F55` | 5.55:1 — AA |
-| `signal` | `#0B6E4F` | 5.49:1 — AA |
-| `warning` | `#8A5712` | 5.34:1 — AA |
-| `danger` | `#B33A2B` | 5.18:1 — AA |
+| `bg` | `#0A0705` | deep brown-black |
+| `surface` | `#16100B` | |
+| `surfaceRaised` | `#211810` | pressed |
+| `border` | `#2A1F14` | hairline |
+| `textPrimary` | `#F2D9A8` | 14.60:1 — AAA |
+| `textSecondary` | `#C9A878` | AAA |
+| `textTertiary` | `#A8855A` | 5.90:1 — AA |
+| `signal` | `#FFB224` | 11.14:1 — AAA |
+| `warning` | `#FF8A1F` | |
+| `danger` | `#FF6B35` | 7.08:1 — AA |
 
-### Proximity bands, inverted
+### Proximity bands
 
-On paper the strongest band is the **darkest**, the reverse of the old dark
-theme.
+Strongest is brightest on this dark ground.
 
 | Band | Value | On `bg` |
 |---|---|---|
-| `immediate` | `#15654C` | 6.15 |
-| `near` | `#288164` | 4.18 |
-| `far` | `#3E9378` | 3.26 |
-| `distant` | `#539782` | 3.01 |
+| `immediate` | `#FDAE26` | 10.77 |
+| `near` | `#EB9A0F` | 8.76 |
+| `far` | `#C38418` | 6.35 |
+| `distant` | `#92661C` | 3.96 |
 
-**A light ground caps the weak end.** At 3:1 — the floor for non-text graphics —
-nothing lighter than relative luminance **0.2573** is legible on this paper, so
-the whole ramp is squeezed into 0.0999 → 0.2558, a 2.6x spread. The same ramp on
-near-black spanned nearly 10x.
+The ramp drafted with this theme put `distant` at `#543A0D` — **1.90:1**, below
+the 3:1 floor for non-text graphics, so a distant device would have been
+effectively invisible. These values are solved against that floor instead.
 
-That is a real consequence, not a detail: colour carries **less** of the ordinal
-signal here. The band name and the position in the list must carry it, with
-colour reinforcing rather than encoding alone.
+Amber gives about a 3.3x luminance spread (0.5129 → 0.1570), narrower than a
+green ramp on the same ground, so the band name and list position still carry
+the ordinal reading with colour reinforcing.
+
+Identity-chip hues are constrained to **24–58** so per-device colour stays inside
+the amber family and cannot fight the single-hue palette.
 
 ### Type
 
@@ -309,16 +312,21 @@ jitters and the row reflows. A correctness issue, not a stylistic one.
 Spacing on a 4 grid: **4 · 6 · 8 · 10 · 16 · 24**.
 Radius: **3** (chips) · **10** (controls) · full (pills).
 
+### Native chrome
+
+The tab bar takes its colours from the platform theme, which on Android is
+Material blue. `NativeTabs` is given explicit `backgroundColor`, `tintColor`,
+`iconColor`, `indicatorColor` and `rippleColor`, or it fights the palette.
+
 ---
 
 ## 9. Open design decisions
 
 **Resolved**
 
-- **Theme is light, and light-only.** `userInterfaceStyle: "light"` with
-  `expo-system-ui`. Hunting happens outdoors; a near-black screen is unreadable
-  in sunlight. There is no `useColorScheme` branch anywhere.
-- **Scanner is organised by cadence, not by row order** — see §1 and §4.
+- **Theme is amber CRT, dark, and dark-only.** `userInterfaceStyle: "dark"` with
+  `expo-system-ui`. No `useColorScheme` branch anywhere.
+- **Scanner is organised by cadence** — see §1 and §4.
 - **Tokens defined and contrast-verified** — see §8.
 - **Proximity bands: fixed thresholds** — see §4.
 

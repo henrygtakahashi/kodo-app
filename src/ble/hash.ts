@@ -9,14 +9,14 @@ export function hashId(id: string): number {
 }
 
 /**
- * Identity hue, constrained to 140–200 (greens through cyans).
+ * Identity hue, constrained to 24–58 (ambers through warm yellows).
  *
  * A full 0–360 spread would give every device a random colour and wreck the
- * single-accent palette in DESIGN.md §8. A narrow band still separates devices
- * at a glance while staying in the instrument's colour family.
+ * single-hue palette in DESIGN.md §8. A narrow band still separates devices at
+ * a glance while staying inside the instrument's colour family.
  */
 export function hueFor(id: string): number {
-  return 140 + (hashId(id) % 61);
+  return 24 + (hashId(id) % 35);
 }
 
 /**

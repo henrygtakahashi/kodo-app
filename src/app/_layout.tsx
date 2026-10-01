@@ -1,15 +1,14 @@
-import { DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
+import { DarkTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router/stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { colors } from '@/theme/colors';
 
-// Light-only by design (DESIGN.md §9): the app is read outdoors while walking,
-// so no useColorScheme branch.
+// Dark-only by design (DESIGN.md §9), so no useColorScheme branch.
 const theme = {
-  ...DefaultTheme,
+  ...DarkTheme,
   colors: {
-    ...DefaultTheme.colors,
+    ...DarkTheme.colors,
     background: colors.bg,
     card: colors.surface,
     text: colors.textPrimary,
