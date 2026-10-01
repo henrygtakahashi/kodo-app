@@ -78,12 +78,10 @@ const APPLE_GENERIC = 0x10;
 function appleDetail(bytes: Uint8Array): string | null {
   let offset = 2; // skip the company ID
   let generic: string | null = null;
-  let firstType: number | null = null;
 
   while (offset + 1 < bytes.length) {
     const type = bytes[offset];
     const length = bytes[offset + 1];
-    if (firstType === null) firstType = type;
 
     const name = APPLE_TYPES[type];
     if (name) {
@@ -97,13 +95,10 @@ function appleDetail(bytes: Uint8Array): string | null {
     offset += 2 + length;
   }
 
-  if (generic) return generic;
-
-  // Report the type rather than invent a meaning for it. This is a diagnostics
-  // tool, so "which Apple payload is this" is useful on its own, and an
-  // unrecognised type showing up in the field is how the table grows.
-  if (firstType !== null) return `Apple (type 0x${firstType.toString(16).padStart(2, '0')})`;
-  return null;
+  // An unrecognised type falls through to the vendor name. The raw type stays
+  // readable from manufacturerData on the detail screen, where a hex dump
+  // belongs; a card title is not the place for it.
+  return generic;
 }
 
 function parseManufacturer(
