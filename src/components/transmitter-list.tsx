@@ -1,8 +1,8 @@
 import { Canvas } from '@shopify/react-native-skia';
 import { router } from 'expo-router';
 import { memo, useEffect, useMemo, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 
 import { advertisingIntervalMs, type DeviceRecord, useDeviceStore } from '@/store/devices';
 import { KIND_LABELS } from '@/ble/kind';
@@ -17,6 +17,8 @@ const STRIP_INSET = 16;
 const LABEL_WIDTH = 150;
 const RIGHT_WIDTH = 78;
 const CHEVRON_WIDTH = 16;
+/** How often the cadence strips' time axis advances. */
+const CLOCK_MS = 100;
 /** A dBm move this large shows at once; smaller ones wait for READOUT_MS. */
 const READOUT_JUMP_DBM = 3;
 /** Readouts change at most this often: 8 Hz jitter is unreadable anyway. */
@@ -142,15 +144,17 @@ export function TransmitterList() {
   const [width, setWidth] = useState(0);
 
   const clock = useSharedValue(Date.now());
-  const scrollY = useSharedValue(0);
-  const viewport = useSharedValue(0);
-  const onScroll = useAnimatedScrollHandler((event) => {
-    scrollY.set(event.contentOffset.y);
-  });
 
-  // One clock write per store write moves every strip's window, instead of
-  // each strip copying its own timestamp to the UI thread.
-  useEffect(() => useDeviceStore.subscribe(() => clock.set(Date.now())), [clock]);
+  // One shared clock slides every strip's window, at a steady 10 Hz rather than
+  // per store write (12 per second, bunched). It stops with the scan, so a
+  // paused list holds still like the snapshot it is.
+  const scanning = useDeviceStore((state) => state.scanning);
+  useEffect(() => {
+    if (!scanning) return;
+    clock.set(Date.now());
+    const timer = setInterval(() => clock.set(Date.now()), CLOCK_MS);
+    return () => clearInterval(timer);
+  }, [scanning, clock]);
 
   const stripX = LABEL_WIDTH;
   const stripWidth = Math.max(0, width - LABEL_WIDTH - RIGHT_WIDTH - CHEVRON_WIDTH - 8);
@@ -163,10 +167,7 @@ export function TransmitterList() {
         <Text style={[styles.axisLabel, styles.axisUnits]}>interval · dBm</Text>
       </View>
 
-      <Animated.ScrollView
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        onLayout={(e) => viewport.set(e.nativeEvent.layout.height)}
+      <ScrollView
         contentContainerStyle={{ height: order.length * ROW_HEIGHT }}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={() => {
@@ -189,8 +190,6 @@ export function TransmitterList() {
                 height={ROW_HEIGHT - STRIP_INSET * 2}
                 track={theme.track}
                 clock={clock}
-                scrollY={scrollY}
-                viewport={viewport}
               />
             ))}
           </Canvas>
@@ -199,7 +198,7 @@ export function TransmitterList() {
         {order.map((id) => (
           <Row key={id} id={id} />
         ))}
-      </Animated.ScrollView>
+      </ScrollView>
     </View>
   );
 }

@@ -71,10 +71,30 @@ on nearly every 8 Hz flush, which re-rendered every row 8×/s for digits nobody
 can read at that rate. They now show at most every 500 ms, or at once on a jump
 of 3 dBm or more; identity, staleness and band changes show immediately.
 
-The strips share one clock, advanced once per store write, instead of each strip
-copying its own timestamp to the UI thread. The canvas still spans the whole
-list so it scrolls natively with the rows, but strips outside the viewport skip
-building their path.
+**The strips are the expensive part, and they were UI-thread bound.** Measured
+on a Galaxy device over scrcpy with 30 synthetic advertisers (two at 5 ms, two
+at 12 ms): 76% janky frames while scrolling, a 29 ms median frame, the UI thread
+at 90% CPU. With the canvas disabled the same load was 7% janky, so the strips
+were the cost, and a 5 ms advertiser — 2000 segments in one strip — was the
+worst of it. Four changes, in order of effect:
+
+1. **Density cap.** Arrivals closer than 40 ms are not kept (`MIN_TICK_GAP_MS`).
+   One pixel of the strip is about 50 ms, so denser ticks drew on top of each
+   other as the same solid block. `packets` still counts every advertisement, so
+   the interval readout is unaffected.
+2. **Translate, don't rebuild.** A strip's path is built once per change in
+   arrivals, relative to the instant it was built. Time passing is a translation
+   by the shared clock, clipped to the track. Most devices advertise rarely, so
+   most paths never rebuild.
+3. **One native call per path.** The path is parsed from an SVG string rather
+   than built with two JSI calls per tick.
+4. **No scroll handler.** An earlier cull of off-screen strips re-ran every
+   path on every scroll event. The canvas scrolls natively with the rows;
+   leave it alone.
+
+Result under the same load: 0.34% janky while scrolling (7 of 2039 frames, 99th
+percentile 18 ms) and 11.6% idle, down from 50%. The clock is a steady 10 Hz
+interval that stops with the scan, so a paused list holds still.
 
 Re-sort cadence is capped and paused on touch for a **UX** reason ahead of a
 performance one: a signal-sorted list reordering 8×/sec moves rows out from under

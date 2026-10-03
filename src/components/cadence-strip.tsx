@@ -16,15 +16,15 @@ type Props = {
   track: string;
   /** Shared time base for every strip, advanced once per store write. */
   clock: SharedValue<number>;
-  /** List scroll offset and viewport height, for skipping off-screen strips. */
-  scrollY: SharedValue<number>;
-  viewport: SharedValue<number>;
 };
 
 /** Ticks stay clear of the track's rounded ends. */
 const TRACK_PAD = 3;
 /** Matches the row's stale dimming, which cannot reach a shared canvas. */
 const STALE_OPACITY = 0.45;
+
+/** Arrival times, plus the instant the path below is drawn relative to. */
+type Source = { ticks: number[]; base: number };
 
 /**
  * One tick per advertisement received, laid out on a real time axis.
@@ -33,9 +33,15 @@ const STALE_OPACITY = 0.45;
  * different intervals, from 20 ms to 10.24 s. A beacon draws a dense stripe, a
  * watch a spaced comb, a sleepy sensor a dot every couple of seconds. The
  * rhythm identifies the kind of device before the name does.
+ *
+ * The path is built once per change in arrivals, positioned relative to the
+ * instant it was built. Time passing is a translation of that path by the
+ * shared clock, clipped to the track. Rebuilding every strip's path on every
+ * clock tick made the UI thread the bottleneck: most devices advertise rarely
+ * and their path does not change between ticks.
  */
-export function CadenceStrip({ id, x, y, width, height, track, clock, scrollY, viewport }: Props) {
-  const times = useSharedValue<number[]>([]);
+export function CadenceStrip({ id, x, y, width, height, track, clock }: Props) {
+  const source = useSharedValue<Source>({ ticks: [], base: Date.now() });
   const colour = useSharedValue<string>(getTheme().bands.distant);
   const opacity = useSharedValue(1);
 
@@ -50,7 +56,9 @@ export function CadenceStrip({ id, x, y, width, height, track, clock, scrollY, v
       // without this, each write costs one array copy to the UI thread per
       // device, which is the work that grows with the length of the list.
       if (!record || record === last) return;
-      if (record.arrivals !== last?.arrivals) times.set(record.arrivals);
+      if (record.arrivals !== last?.arrivals) {
+        source.set({ ticks: record.arrivals, base: Date.now() });
+      }
       // Compared as the resolved colour, so a theme switch lands too.
       const next = getTheme().bands[bandFor(record.smoothed)];
       if (next !== lastColour) colour.set(next);
@@ -63,35 +71,41 @@ export function CadenceStrip({ id, x, y, width, height, track, clock, scrollY, v
 
     read();
     return useDeviceStore.subscribe(read);
-  }, [id, times, colour, opacity]);
+  }, [id, source, colour, opacity]);
 
+  const pxPerMs = (width - TRACK_PAD * 2) / CADENCE_WINDOW_MS;
+  const right = x + width - TRACK_PAD;
+
+  // Depends on arrivals only, not on the clock.
   const path = useDerivedValue(() => {
-    const strip = Skia.Path.Make();
-    // Off-screen strips are skipped; the canvas spans the whole list.
-    const top = scrollY.value;
-    if (y + height < top || y > top + viewport.value) return strip;
-
-    const ticks = times.value;
-    const start = clock.value - CADENCE_WINDOW_MS;
-    const left = x + TRACK_PAD;
-    const span = width - TRACK_PAD * 2;
-
+    const { ticks, base } = source.value;
+    // One native call to parse a string, not two per tick: a dense strip is
+    // hundreds of segments, and every JSI call is paid on the UI thread.
+    const top = y + TRACK_PAD;
+    const drop = height - TRACK_PAD * 2;
+    let d = '';
     for (let i = 0; i < ticks.length; i += 1) {
-      const t = (ticks[i] - start) / CADENCE_WINDOW_MS;
-      if (t < 0 || t > 1) continue;
-      const px = left + t * span;
-      strip.moveTo(px, y + TRACK_PAD);
-      strip.lineTo(px, y + height - TRACK_PAD);
+      const px = right + (ticks[i] - base) * pxPerMs;
+      d += `M${Math.round(px * 2) / 2} ${top}v${drop}`;
     }
-    return strip;
+    return Skia.Path.MakeFromSVGString(d) ?? Skia.Path.Make();
   });
+
+  // The right edge is "now": as the clock moves past `base`, the path slides left.
+  const slide = useDerivedValue(() => [
+    { translateX: (source.value.base - clock.value) * pxPerMs },
+  ]);
 
   // The track makes an empty stretch read as measured silence rather than
   // missing data, and marks where the 10 s window starts and ends.
   return (
     <Group opacity={opacity}>
       <RoundedRect x={x} y={y} width={width} height={height} r={3} color={track} />
-      <Path path={path} color={colour} style="stroke" strokeWidth={1.5} />
+      <Group clip={{ x: x + TRACK_PAD, y, width: width - TRACK_PAD * 2, height }}>
+        <Group transform={slide}>
+          <Path path={path} color={colour} style="stroke" strokeWidth={1.5} />
+        </Group>
+      </Group>
     </Group>
   );
 }

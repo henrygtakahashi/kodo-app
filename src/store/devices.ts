@@ -48,6 +48,16 @@ export const HISTORY_LENGTH = HISTORY_HZ * HISTORY_SECONDS;
 /** How much of the recent past the cadence strip shows. */
 export const CADENCE_WINDOW_MS = 10_000;
 
+/**
+ * Ticks closer together than this are not kept. The strip is about 190 px wide
+ * for 10 s, so one pixel is roughly 50 ms: anything denser draws on top of
+ * itself and renders as the same solid block. A 5 ms advertiser would
+ * otherwise put 2000 segments in one strip, rebuilt and stroked on every store
+ * write. The rate itself is not lost: `packets` still counts every
+ * advertisement, and the mean interval is computed from it.
+ */
+export const MIN_TICK_GAP_MS = 40;
+
 export type Staleness = 'live' | 'stale';
 
 /**
@@ -214,6 +224,28 @@ function advertisementOf(device: Device): Advertisement {
   };
 }
 
+/**
+ * Window-pruned, density-capped arrival list. Returns `previous` itself when
+ * nothing changed, so strips can skip copying it to the UI thread.
+ */
+function nextArrivals(previous: number[], incoming: number[], cutoff: number): number[] {
+  let start = 0;
+  while (start < previous.length && previous[start] < cutoff) start += 1;
+
+  let last = start < previous.length ? previous[previous.length - 1] : -Infinity;
+  let added: number[] | null = null;
+  for (const t of incoming) {
+    if (t - last >= MIN_TICK_GAP_MS) {
+      (added ??= []).push(t);
+      last = t;
+    }
+  }
+
+  if (start === 0 && added === null) return previous;
+  const kept = start === 0 ? previous : previous.slice(start);
+  return added === null ? kept : kept.concat(added);
+}
+
 function createRecord(device: Device, rssi: number, now: number, times: number[]): DeviceRecord {
   const advertisement = advertisementOf(device);
   const identity = deriveIdentity(device.id, advertisement);
@@ -230,7 +262,7 @@ function createRecord(device: Device, rssi: number, now: number, times: number[]
     lastSeen: now,
     staleness: 'live',
     history: [rssi],
-    arrivals: times.slice(),
+    arrivals: nextArrivals([], times, 0),
     advertisement,
     packets: times.length,
   };
@@ -319,7 +351,7 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
           packets: previous.packets + times.length,
           // Pruned to the window here rather than at draw time, so the buffer
           // cannot grow without bound for a chatty device.
-          arrivals: [...previous.arrivals, ...times].filter((t) => t >= cutoff),
+          arrivals: nextArrivals(previous.arrivals, times, cutoff),
           identity,
           hasRealName:
             previous.hasRealName || Boolean(device.name?.trim() || device.localName?.trim()),
