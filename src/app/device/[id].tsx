@@ -227,7 +227,9 @@ export default function DeviceDetailScreen() {
           accessibilityRole="button"
           onPress={() => {
             useDeviceStore.getState().setTarget(record.id);
-            router.replace('/hunt');
+            // Back to the existing tabs, not a new copy of them on top of this
+            // screen: `replace` stacked a second (tabs), and with it a second scan.
+            router.dismissTo('/hunt');
           }}>
           <MaterialCommunityIcons name="crosshairs-gps" size={18} color={theme.bg} />
           <Text style={styles.huntLabel}>Hunt this device</Text>

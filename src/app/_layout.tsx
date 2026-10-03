@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { BleProvider } from '@/ble/ble-provider';
 import { useTheme } from '@/theme/use-theme';
 
 export default function RootLayout() {
@@ -31,18 +32,20 @@ export default function RootLayout() {
     // no error, no warning.
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={theme}>
-        <StatusBar style={palette.mode === 'dark' ? 'light' : 'dark'} />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: palette.bg },
-          }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="device/[id]"
-            options={{ headerShown: true, title: 'Device' }}
-          />
-        </Stack>
+        {/* Root, not the tab layout: a route can mount (tabs) a second time,
+            and a second provider means a second scan. ble-plx keeps one scan
+            handle, so the second start orphaned the first scanner for good. */}
+        <BleProvider>
+          <StatusBar style={palette.mode === 'dark' ? 'light' : 'dark'} />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: palette.bg },
+            }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="device/[id]" options={{ headerShown: true, title: 'Device' }} />
+          </Stack>
+        </BleProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

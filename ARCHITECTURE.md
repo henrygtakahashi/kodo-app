@@ -86,6 +86,20 @@ scan client with a new timer. 3 min rather than 4 because JS timers drift on
 device — one 4 min restart landed at 4 min 20 s. Verified over 11 min of logcat:
 no demotion of the live scanner.
 
+### One scan owner
+
+`BleProvider` (gate + scan) is mounted once, in the root layout. ble-plx holds
+a single native scan handle: a second `startDeviceScan` overwrites it without
+disposing the first, and the orphaned scanner stays registered until the
+process dies. With the provider in the tab layout, "Hunt this device" used
+`router.replace('/hunt')`, which stacked a second `(tabs)` and so a second
+provider and scan. Each hunt leaked one scanner; at 27 Android refused new
+ones ("Cannot start scanning operation"), and every packet was delivered 27
+times, inflating packet rates. The detail screen now uses
+`router.dismissTo('/hunt')`. Check with
+`adb shell dumpsys bluetooth_manager | grep -c "app: com.anonymous.bleapp"`,
+which should print 1.
+
 ---
 
 ## 3. State management

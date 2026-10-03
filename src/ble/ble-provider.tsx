@@ -9,11 +9,11 @@ type BleContextValue = { gate: Gate; scanError: string | null; retryScan: () => 
 const BleContext = createContext<BleContextValue | null>(null);
 
 /**
- * Owns the gate and the scan for every tab.
+ * Owns the gate and the scan for the whole app, so there is exactly one.
  *
- * This sits above the tab navigator on purpose. Owned by the Scanner screen,
- * the scan would stop the moment the user switched to Radar, and both tabs
- * render the same store.
+ * Mounted in the root layout. Owned by a screen, the scan would stop when the
+ * user switched tabs; owned by the tab layout, it ran twice whenever a route
+ * mounted (tabs) again, and each duplicate leaked an Android scanner.
  */
 export function BleProvider({ children }: { children: ReactNode }) {
   const gate = useBleGate();
