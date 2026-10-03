@@ -1,4 +1,4 @@
-import { Path, Skia } from '@shopify/react-native-skia';
+import { LinearGradient, Path, Skia, vec } from '@shopify/react-native-skia';
 import { useEffect } from 'react';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 
@@ -6,7 +6,15 @@ import { HISTORY_LENGTH, useDeviceStore } from '@/store/devices';
 import { RSSI_AT_CENTRE, RSSI_AT_RIM, bandFor } from '@/ble/signal';
 import { getTheme } from '@/theme/use-theme';
 
-type Props = { id: string; x: number; y: number; width: number; height: number };
+type Props = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** How many of the newest samples to draw across the width. Defaults to the whole history. */
+  samples?: number;
+};
 
 /**
  * One device's RSSI over time.
@@ -15,14 +23,14 @@ type Props = { id: string; x: number; y: number; width: number; height: number }
  * and the path is rebuilt in a worklet — React never renders for a signal
  * change (DESIGN.md §2).
  */
-export function SignalTrace({ id, x, y, width, height }: Props) {
-  const samples = useSharedValue<number[]>([]);
+export function SignalTrace({ id, x, y, width, height, samples = HISTORY_LENGTH }: Props) {
+  const history = useSharedValue<number[]>([]);
   const colour = useSharedValue<string>(getTheme().bands.distant);
 
   useEffect(() => {
-    const read = (history: number[] | undefined, smoothed: number | undefined) => {
-      if (!history) return;
-      samples.set(history);
+    const read = (points: number[] | undefined, smoothed: number | undefined) => {
+      if (!points) return;
+      history.set(points);
       if (smoothed !== undefined) colour.set(getTheme().bands[bandFor(smoothed)]);
     };
 
@@ -33,17 +41,17 @@ export function SignalTrace({ id, x, y, width, height }: Props) {
       const record = state.devices[id];
       read(record?.history, record?.smoothed);
     });
-  }, [id, samples, colour]);
+  }, [id, history, colour]);
 
   const path = useDerivedValue(() => {
-    const points = samples.value;
+    const points = history.value.slice(-samples);
     const line = Skia.Path.Make();
     if (points.length < 2) return line;
 
     // The x-axis is fixed to the full window, so a device seen for 3 s draws a
     // short trace on the right rather than stretching 3 s across 20 s of width.
-    const step = width / (HISTORY_LENGTH - 1);
-    const offset = Math.max(0, HISTORY_LENGTH - points.length);
+    const step = width / (samples - 1);
+    const offset = Math.max(0, samples - points.length);
     const span = RSSI_AT_CENTRE - RSSI_AT_RIM;
 
     for (let i = 0; i < points.length; i += 1) {
@@ -57,5 +65,26 @@ export function SignalTrace({ id, x, y, width, height }: Props) {
     return line;
   });
 
-  return <Path path={path} color={colour} style="stroke" strokeWidth={2} strokeJoin="round" />;
+  // The same line closed down to the floor of the scale. The fill grounds the
+  // trace, so a strong signal reads as a tall area rather than a line floating
+  // in empty space.
+  const area = useDerivedValue(() => {
+    const shape = path.value.copy();
+    const bounds = shape.getBounds();
+    if (bounds.width === 0) return shape;
+    shape.lineTo(bounds.x + bounds.width, y + height);
+    shape.lineTo(bounds.x, y + height);
+    shape.close();
+    return shape;
+  });
+  const fade = useDerivedValue(() => [`${colour.value}40`, `${colour.value}00`]);
+
+  return (
+    <>
+      <Path path={area}>
+        <LinearGradient start={vec(0, y)} end={vec(0, y + height)} colors={fade} />
+      </Path>
+      <Path path={path} color={colour} style="stroke" strokeWidth={2} strokeJoin="round" />
+    </>
+  );
 }

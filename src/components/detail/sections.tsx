@@ -10,7 +10,12 @@ import { distinctRecords, hex2, toHex, type ParsedRecord } from '@/ble/ad-struct
 import { type Band, type Trend } from '@/ble/signal';
 import { CadenceStrip } from '@/components/cadence-strip';
 import { SignalTrace } from '@/components/signal-trace';
-import { type Advertisement, useDeviceStore } from '@/store/devices';
+import {
+  CADENCE_WINDOW_MS,
+  HISTORY_HZ,
+  type Advertisement,
+  useDeviceStore,
+} from '@/store/devices';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 import type { Term } from './glossary';
@@ -82,13 +87,18 @@ export function Row({
 
 // --- Live -----------------------------------------------------------------------
 
-const TRACE_HEIGHT = 56;
-const STRIP_HEIGHT = 26;
-const LIVE_GAP = 10;
+const TRACE_HEIGHT = 44;
+const STRIP_HEIGHT = 24;
+const LIVE_GAP = 6;
+/**
+ * Both rows share one time axis, so the trace shows the same window as the
+ * strip. Two windows under one "now" read as one axis and misaligned events.
+ */
+const LIVE_SECONDS = CADENCE_WINDOW_MS / 1000;
 const CLOCK_MS = 100;
 
 /**
- * The live signal: the 20 s trace and the 10 s cadence strip in one canvas.
+ * The live signal: trace and cadence strip on one shared 10 s axis, one canvas.
  * Both read the store on their own and never re-render React (DESIGN.md §2).
  */
 export const LiveCard = memo(function LiveCard({ id, onInfo }: { id: string; onInfo: OnInfo }) {
@@ -105,9 +115,9 @@ export const LiveCard = memo(function LiveCard({ id, onInfo }: { id: string; onI
   }, [scanning, clock]);
 
   return (
-    <View style={styles.liveCard}>
+    <View style={styles.live}>
       <View style={styles.liveHead}>
-        <Text style={styles.liveLabel}>signal · last 20 s</Text>
+        <Text style={styles.liveLabel}>signal and broadcasts</Text>
         <InfoButton term="cadence" onInfo={onInfo} />
       </View>
       <View
@@ -115,21 +125,29 @@ export const LiveCard = memo(function LiveCard({ id, onInfo }: { id: string; onI
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
         {width > 0 && (
           <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-            <SignalTrace id={id} x={0} y={2} width={width} height={TRACE_HEIGHT - 4} />
+            <SignalTrace
+              id={id}
+              x={0}
+              y={2}
+              width={width}
+              height={TRACE_HEIGHT - 4}
+              samples={LIVE_SECONDS * HISTORY_HZ}
+            />
             <CadenceStrip
               id={id}
               x={0}
               y={TRACE_HEIGHT + LIVE_GAP}
               width={width}
               height={STRIP_HEIGHT}
-              track={theme.track}
+              variant="bare"
+              track={theme.border}
               clock={clock}
             />
           </Canvas>
         )}
       </View>
       <View style={styles.liveFoot}>
-        <Text style={styles.liveLabel}>broadcasts · last 10 s</Text>
+        <Text style={styles.liveLabel}>{LIVE_SECONDS} s ago</Text>
         <Text style={styles.liveLabel}>now</Text>
       </View>
     </View>
@@ -415,14 +433,8 @@ const makeStyles = (t: Palette) =>
     rowValue: { color: t.textPrimary, fontSize: 14, flex: 1 },
     missing: { color: t.textTertiary, fontSize: 12, paddingVertical: 10 },
 
-    liveCard: {
-      backgroundColor: t.surface,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: t.border,
-      padding: 14,
-      gap: 8,
-    },
+    // Bare, no card, matching Hunt: the trace reads as a line on the page.
+    live: { gap: 8, paddingHorizontal: 2, paddingVertical: 4 },
     liveHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     liveFoot: { flexDirection: 'row', justifyContent: 'space-between' },
     liveLabel: { color: t.textTertiary, fontSize: 11 },

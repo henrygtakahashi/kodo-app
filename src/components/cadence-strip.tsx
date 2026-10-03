@@ -1,4 +1,4 @@
-import { Group, Path, RoundedRect, Skia } from '@shopify/react-native-skia';
+import { Group, Path, Rect, RoundedRect, Skia } from '@shopify/react-native-skia';
 import { useEffect } from 'react';
 import { type SharedValue, useDerivedValue, useSharedValue } from 'react-native-reanimated';
 
@@ -12,7 +12,13 @@ type Props = {
   y: number;
   width: number;
   height: number;
-  /** Fill of the recessed track that frames the window. */
+  /**
+   * `track` (default) sits the ticks in a recessed fill; `bare` drops the fill
+   * for open layouts and keeps a hairline baseline, so the window's extent and
+   * an empty stretch still read as measured silence.
+   */
+  variant?: 'track' | 'bare';
+  /** Track fill, or the baseline colour in the `bare` variant. */
   track: string;
   /** Shared time base for every strip, advanced once per store write. */
   clock: SharedValue<number>;
@@ -40,7 +46,16 @@ type Source = { ticks: number[]; base: number };
  * clock tick made the UI thread the bottleneck: most devices advertise rarely
  * and their path does not change between ticks.
  */
-export function CadenceStrip({ id, x, y, width, height, track, clock }: Props) {
+export function CadenceStrip({
+  id,
+  x,
+  y,
+  width,
+  height,
+  variant = 'track',
+  track,
+  clock,
+}: Props) {
   const source = useSharedValue<Source>({ ticks: [], base: Date.now() });
   const colour = useSharedValue<string>(getTheme().bands.distant);
   const opacity = useSharedValue(1);
@@ -73,8 +88,11 @@ export function CadenceStrip({ id, x, y, width, height, track, clock }: Props) {
     return useDeviceStore.subscribe(read);
   }, [id, source, colour, opacity]);
 
-  const pxPerMs = (width - TRACK_PAD * 2) / CADENCE_WINDOW_MS;
-  const right = x + width - TRACK_PAD;
+  // The bare variant has no rounded ends to clear, so its ticks run edge to
+  // edge and line up with whatever is drawn above them.
+  const pad = variant === 'track' ? TRACK_PAD : 0;
+  const pxPerMs = (width - pad * 2) / CADENCE_WINDOW_MS;
+  const right = x + width - pad;
 
   // Depends on arrivals only, not on the clock.
   const path = useDerivedValue(() => {
@@ -100,8 +118,12 @@ export function CadenceStrip({ id, x, y, width, height, track, clock }: Props) {
   // missing data, and marks where the 10 s window starts and ends.
   return (
     <Group opacity={opacity}>
-      <RoundedRect x={x} y={y} width={width} height={height} r={3} color={track} />
-      <Group clip={{ x: x + TRACK_PAD, y, width: width - TRACK_PAD * 2, height }}>
+      {variant === 'track' ? (
+        <RoundedRect x={x} y={y} width={width} height={height} r={3} color={track} />
+      ) : (
+        <Rect x={x} y={y + height - 1} width={width} height={1} color={track} />
+      )}
+      <Group clip={{ x: x + pad, y, width: width - pad * 2, height }}>
         <Group transform={slide}>
           <Path path={path} color={colour} style="stroke" strokeWidth={1.5} />
         </Group>
