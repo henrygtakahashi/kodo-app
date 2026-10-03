@@ -3,6 +3,7 @@ import { ScanMode } from 'react-native-ble-plx';
 
 import { useDeviceStore, type PendingDevice } from '@/store/devices';
 import { getBleManager } from './manager';
+import { friendlyScanError } from './scan-errors';
 
 /** 8 Hz. Drains arrivals. */
 const FLUSH_MS = 125;
@@ -72,7 +73,8 @@ export function useScan(enabled: boolean) {
       { scanMode: ScanMode.LowLatency, legacyScan: legacyOnly },
       (scanError, device) => {
         if (scanError) {
-          setError(scanError.message);
+          console.warn('[scan]', scanError.errorCode, scanError.message);
+          setError(friendlyScanError(scanError));
           // One pending retry at a time; the callback can fire repeatedly.
           if (!retryTimer) retryTimer = setTimeout(() => setAttempt((n) => n + 1), RETRY_MS);
           return;
@@ -89,14 +91,21 @@ export function useScan(enabled: boolean) {
     );
 
     const begin = () =>
-      start().catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+      start().catch((e: unknown) => {
+        console.warn('[scan] start failed', e);
+        setError(friendlyScanError(e));
+      });
     begin();
 
     // The gap between stop and start is a few milliseconds; nothing is lost
-    // from the list, which expires on its own clock.
+    // from the list, which expires on its own clock. Start only after the stop
+    // has landed: ble-plx overwrites its scan handle on start without disposing
+    // the old one, so a start that overtook the stop would leak a scanner.
     const rescan = setInterval(() => {
-      void manager.stopDeviceScan().catch(() => undefined);
-      begin();
+      void manager
+        .stopDeviceScan()
+        .catch(() => undefined)
+        .then(begin);
     }, RESCAN_MS);
 
     const flush = setInterval(() => {
