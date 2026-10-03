@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -22,6 +23,8 @@ import { InfoButton, InfoSheet } from '@/components/detail/info-sheet';
 import { trendOf, type Band, type Trend } from '@/ble/signal';
 import { GateNotice } from '@/components/gate-notice';
 import { HuntRings } from '@/components/hunt-rings';
+import { KindIcon } from '@/components/kind-icon';
+import type { DeviceKind } from '@/ble/kind';
 import { Screen } from '@/components/screen';
 import { SignalTrace } from '@/components/signal-trace';
 import { useTheme } from '@/theme/use-theme';
@@ -57,10 +60,13 @@ function trendColour(trend: Trend, t: Palette): string {
 
 type Reading = {
   label: string;
+  kind: DeviceKind | null;
   dbm: number;
   /** Index into DISTANCE_LABELS, 0 nearest. */
   bucket: number;
   calibration: CalibrationSource;
+  /** The RSSI at 1 m the estimate uses, whatever its source. */
+  rssiAt1m: number;
   trend: Trend;
   best: number | null;
   bestAgo: number | null;
@@ -72,9 +78,11 @@ function read(id: string, previousBucket: number | null): Reading {
   if (!record) {
     return {
       label: '',
+      kind: null,
       dbm: -127,
       bucket: DISTANCE_LABELS.length - 1,
       calibration: 'default',
+      rssiAt1m: 0,
       trend: 'steady',
       best: null,
       bestAgo: null,
@@ -92,6 +100,7 @@ function read(id: string, previousBucket: number | null): Reading {
 
   return {
     label: record.identity.label,
+    kind: record.identity.kind?.kind ?? null,
     dbm: Math.round(record.smoothed),
     bucket: distanceBucket(
       steadyRssi(history, HISTORY_HZ, record.smoothed),
@@ -99,6 +108,7 @@ function read(id: string, previousBucket: number | null): Reading {
       previousBucket
     ),
     calibration: calibration.source,
+    rssiAt1m: calibration.rssiAt1m,
     trend: trendOf(history),
     best: history.length ? Math.round(history[bestIndex]) : null,
     bestAgo: history.length ? Math.round((history.length - 1 - bestIndex) / HISTORY_HZ) : null,
@@ -169,11 +179,10 @@ export default function HuntScreen() {
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const { gate } = useBle();
   const targetId = useDeviceStore((state) => state.targetId);
-  const setTarget = useDeviceStore((state) => state.setTarget);
 
   if (gate.status !== 'ready') return <GateNotice gate={gate} />;
   if (!targetId) return <Empty />;
-  return <Hunting id={targetId} onClear={() => setTarget(null)} />;
+  return <Hunting id={targetId} />;
 }
 
 /**
@@ -196,7 +205,8 @@ function Empty() {
   );
 }
 
-function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
+/** Switching target goes through Nearby, the same way a target is chosen. */
+function Hunting({ id }: { id: string }) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const { width } = useWindowDimensions();
@@ -215,8 +225,11 @@ function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
       const next = read(id, lastBucket.current);
       setReading((previous) =>
         previous.dbm === next.dbm &&
+        previous.label === next.label &&
+        previous.kind === next.kind &&
         previous.bucket === next.bucket &&
         previous.calibration === next.calibration &&
+        previous.rssiAt1m === next.rssiAt1m &&
         previous.trend === next.trend &&
         previous.gone === next.gone &&
         previous.best === next.best
@@ -253,12 +266,15 @@ function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>
+        {/* Same glyphs as Nearby and the detail screen, generic when the kind is unknown. */}
+        {reading.kind ? (
+          <KindIcon kind={reading.kind} size={22} color={theme.textSecondary} />
+        ) : (
+          <MaterialCommunityIcons name="bluetooth" size={22} color={theme.textSecondary} />
+        )}
+        <Text style={styles.headerTitle} numberOfLines={1}>
           {reading.label || 'Device'}
         </Text>
-        <Pressable onPress={onClear} hitSlop={10} accessibilityRole="button">
-          <Text style={styles.change}>change</Text>
-        </Pressable>
       </View>
 
       {reading.gone ? (
@@ -318,11 +334,21 @@ function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
                   </Text>
                   <InfoButton term="distance" onInfo={setTerm} />
                 </View>
-                <Pressable onPress={() => calibrate(id)} hitSlop={12} accessibilityRole="button">
-                  <Text style={styles.calibrate}>
-                    {reading.calibration === 'user' ? 'Recalibrate' : 'Calibrate at 1 m'}
-                  </Text>
-                </Pressable>
+                <View style={styles.tileFoot}>
+                  <Pressable onPress={() => calibrate(id)} hitSlop={12} accessibilityRole="button">
+                    <Text style={styles.calibrate}>
+                      {reading.calibration === 'user' ? 'Recalibrate' : 'Calibrate at 1 m'}
+                    </Text>
+                  </Pressable>
+                  {/* Only a figure the user measured; an assumed one would read as measured. */}
+                  {reading.calibration === 'user' ? (
+                    <Text
+                      style={styles.tileCaption}
+                      accessibilityLabel={`${reading.rssiAt1m} dBm at 1 metre`}>
+                      {reading.rssiAt1m} dBm
+                    </Text>
+                  ) : null}
+                </View>
               </View>
             </View>
           </View>
@@ -340,9 +366,9 @@ function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
 
 const makeStyles = (t: Palette) =>
   StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  title: { color: t.textPrimary, fontSize: 24, fontWeight: '700', flex: 1 },
-  change: { color: t.signal, fontSize: 14, fontWeight: '600' },
+  title: { color: t.textPrimary, fontSize: 24, fontWeight: '700' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerTitle: { color: t.textPrimary, fontSize: 24, fontWeight: '700', flexShrink: 1 },
 
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   readout: { alignItems: 'center', gap: 4 },
@@ -376,6 +402,12 @@ const makeStyles = (t: Palette) =>
     flexShrink: 1,
   },
   tileCaption: { color: t.textSecondary, fontSize: 12 },
+  tileFoot: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
   calibrate: { color: t.signal, fontSize: 13, fontWeight: '600' },
 
   emptyBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },

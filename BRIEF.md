@@ -177,7 +177,9 @@ a chart.
 - "strongest N dBm · Ns ago" — the best reading in the window and how long since,
   so you can tell whether you have already walked past it.
 - The RSSI trace as supporting detail, not the main event.
-- An ⓘ beside the calibration label opens a short explanation sheet.
+- A calibration tile shows the source (Calibrated, Beacon, Tx power,
+  Uncalibrated) with an ⓘ that opens a short explanation sheet, and, once the
+  user has calibrated, their RSSI at 1 m beside the recalibrate link.
 - The distance reads the median of the last 2 s of signal, not the live
   smoothed value, so a turned wrist or a hand in the way does not move it a
   whole bucket. Path-loss exponent 3 (9 dB per doubling), 3 dB hysteresis.
