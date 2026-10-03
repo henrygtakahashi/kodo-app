@@ -16,6 +16,19 @@ const HISTORY_MS = 250;
  * is the end of it. Retry past the window rather than leaving the app dead.
  */
 const RETRY_MS = 30_000;
+/**
+ * Android demotes an unfiltered scan to "opportunistic" after a timeout, and
+ * from then on the app only hears devices when some other app is scanning: the
+ * list empties within seconds. AOSP's timeout is 30 min; on the Samsung test
+ * phone (SDK 36) logcat showed exactly 5 min:
+ *   ScanManager: Moving unfiltered scan to opportunistic scan for ScanClient(…)
+ * A filter would exempt the scan, but a scanner must see everything, so the scan
+ * is restarted before the timeout instead. Each restart is a fresh scan client
+ * with a fresh timer. 3 min, not 4: JS timers drift on device (one 4 min
+ * restart landed at 4 min 20 s), and the margin has to survive that. One start
+ * every 3 min is far under Android's limit of 5 starts per 30 s.
+ */
+const RESCAN_MS = 3 * 60_000;
 
 /**
  * Owns the scan lifecycle and the two timers from ARCHITECTURE.md §3.
@@ -54,7 +67,7 @@ export function useScan(enabled: boolean) {
     // legacy advertisements should be returned", which reads either as "both"
     // or as "extended only" — measured on device: with false, every legacy
     // advertiser was still reported, so it means both.
-    manager.startDeviceScan(
+    const start = () => manager.startDeviceScan(
       null,
       { scanMode: ScanMode.LowLatency, legacyScan: legacyOnly },
       (scanError, device) => {
@@ -75,6 +88,17 @@ export function useScan(enabled: boolean) {
       }
     );
 
+    const begin = () =>
+      start().catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+    begin();
+
+    // The gap between stop and start is a few milliseconds; nothing is lost
+    // from the list, which expires on its own clock.
+    const rescan = setInterval(() => {
+      void manager.stopDeviceScan().catch(() => undefined);
+      begin();
+    }, RESCAN_MS);
+
     const flush = setInterval(() => {
       if (pending.current.size === 0) return;
       useDeviceStore.getState().merge(pending.current);
@@ -94,6 +118,7 @@ export function useScan(enabled: boolean) {
 
     return () => {
       clearTimeout(retryTimer);
+      clearInterval(rescan);
       clearInterval(flush);
       clearInterval(sweep);
       clearInterval(history);

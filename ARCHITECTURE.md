@@ -69,6 +69,23 @@ Set `isBackgroundEnabled: true` to also emit
 `<uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>`,
 which restricts installs to BLE-capable devices. Currently off.
 
+### Scan restarts
+
+Android demotes an unfiltered scan to *opportunistic* after a timeout; from then
+on the app only hears devices while another app is scanning, and the list
+empties. AOSP's timeout is 30 min; the Samsung test phone (SDK 36) does it at
+exactly 5 min:
+
+```
+ScanManager: Moving unfiltered scan to opportunistic scan for ScanClient(… appName=com.anonymous.bleapp)
+```
+
+A scan filter would exempt it, but a scanner must see everything, so
+`use-scan.ts` restarts the scan every 3 min (`RESCAN_MS`). Each restart is a new
+scan client with a new timer. 3 min rather than 4 because JS timers drift on
+device — one 4 min restart landed at 4 min 20 s. Verified over 11 min of logcat:
+no demotion of the live scanner.
+
 ---
 
 ## 3. State management
