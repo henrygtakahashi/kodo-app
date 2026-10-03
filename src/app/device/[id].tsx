@@ -15,7 +15,6 @@ import {
   PacketSection,
   Row,
   Section,
-  rateWords,
 } from '@/components/detail/sections';
 import { KindIcon } from '@/components/kind-icon';
 import {
@@ -129,19 +128,18 @@ function IdentitySection({
 }
 
 /**
- * One line a newcomer can read without any of the numbers below:
- * "Samsung watch · near · 9 per second · accepts connections".
+ * What the device is, in words a newcomer can read: "Samsung watch · accepts
+ * connections". Stable facts only. Band and rate already live in the hero and
+ * the tiles, and repeating them here made the line change every second.
  */
-function summaryOf(record: DeviceRecord, interval: number | null): string {
+function summaryOf(record: DeviceRecord): string {
   const kind = record.identity.kind ? KIND_LABELS[record.identity.kind.kind].toLowerCase() : null;
   const vendor = record.identity.vendor;
   const what =
     vendor && kind ? `${vendor} ${kind}` : vendor ?? (kind ? kind[0].toUpperCase() + kind.slice(1) : null);
 
   const parts = [
-    what,
-    bandFor(record.smoothed),
-    interval === null ? null : rateWords(interval),
+    what ?? 'Unidentified device',
     record.isConnectable === null ? null : record.isConnectable ? 'accepts connections' : 'broadcast only',
   ];
   return parts.filter(Boolean).join(' · ');
@@ -217,7 +215,7 @@ export default function DeviceDetailScreen() {
           </View>
         </View>
 
-        <Text style={styles.summary}>{summaryOf(record, interval)}</Text>
+        <Text style={styles.summary}>{summaryOf(record)}</Text>
 
         <LiveCard id={record.id} onInfo={onInfo} />
 

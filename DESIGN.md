@@ -363,8 +363,10 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
 **Resolved**
 
 - **The detail screen is layered for newcomers and experts.** Top to bottom:
-  hero (kind icon, name, live dBm) and a one-line plain summary ("Samsung
-  watch · near · 3 per second · accepts connections"); the live 20 s trace and
+  hero (kind icon, name, live dBm) and a one-line plain summary of what the
+  device is ("Samsung watch · accepts connections"). Stable facts only: band and
+  rate are already in the hero and tiles, and repeating them made the line
+  change every second; the live 20 s trace and
   10 s cadence strip; Hunt; four tiles, each a number with its meaning
   underneath; the broadcast decoded field by field with its AD type code; the
   identity; and the raw packet last, collapsed, annotated by length / type /
