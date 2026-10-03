@@ -181,10 +181,10 @@ chart.
 
 | Channel | Encodes | Real? |
 |---|---|---|
-| Arc fill | smoothed RSSI, fixed −40…−100 scale | **Yes** |
+| Lit ring band | distance bucket from smoothed RSSI, log2 scale 0.5–16 m | Estimate |
 | Trace Y | the same scale | **Yes** |
 | Trace X | time, last 20 s | **Yes** |
-| — | *no spatial channel exists* | — |
+| — | *no direction channel exists; rings are symmetric* | — |
 
 The Y scale is fixed, not per-row auto-scaled: auto-scaling would make rows
 incomparable and magnify noise into apparent movement.
@@ -348,7 +348,7 @@ jitters and the row reflows. Correctness, not style.
 ### Spacing, radius
 
 Spacing on a 4 grid: **4 · 6 · 8 · 10 · 16 · 24**.
-Radius: **3** (chips, meter face) · **10** (controls) · full (pills).
+Radius: **3** (chips) · **10** (controls) · full (pills).
 
 ### Native chrome
 
@@ -366,8 +366,9 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
   hero (kind icon, name, live dBm) and a one-line plain summary of what the
   device is ("Samsung watch · accepts connections"). Stable facts only: band and
   rate are already in the hero and tiles, and repeating them made the line
-  change every second; the live 20 s trace and
-  10 s cadence strip; Hunt; four tiles, each a number with its meaning
+  change every second; the live trace and cadence strip, bare (no card) on
+  one shared 10 s axis, because two windows under one "now" read as a single
+  misaligned axis, with a faint fill under the trace to ground it; Hunt; four tiles, each a number with its meaning
   underneath; the broadcast decoded field by field with its AD type code; the
   identity; and the raw packet last, collapsed, annotated by length / type /
   data with a Copy button. Jargon carries an ⓘ that opens an `@expo/ui`
@@ -390,14 +391,24 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
   again, and the detail screen says that when it is starred. Hunt stays
   without a picker.
 - **Palettes are user-selectable** in Settings — see §8. Graphite is the default.
-- **Hunt reads on a moving-coil meter**, not a progress ring: printed face,
-  etched scale, needle on a pivot with a counterweight tail. A needle shows a
-  value and its movement in one mark, has no notion of position, and its lag is
-  physical rather than decorative.
+- **Hunt reads on range rings**, replacing the moving-coil meter (2026-10-03).
+  Rings are centred on the target, one per doubling (1, 2, 4, 8 m), so equal
+  spacing matches how the error grows. The whole estimated bucket is lit
+  rather than a line at the point estimate, because a bucket is all the
+  estimate supports. A pulse runs from the target to the lit band, faster when
+  nearer (650 ms at `< 1 m` to 2.3 s at `8+ m`). This is the continuous
+  exception in §6. Reduced motion drops the pulse and snaps the band. There is
+  no blip, so unlike the cut radar the rings show no position or bearing.
+  Layout splits by posture: the top half is what you glance at while walking
+  (rings at most 220 dp, the range, the trend); a panel anchored to the bottom
+  holds what you read standing still (the signal card with live dBm, the
+  strongest reading, calibration).
 - **Scanner is organised by cadence** — see §1 and §4.
 - **Proximity bands: fixed thresholds** — see §4.
 - **Scanner row details.** Cadence ticks sit in a recessed `surface` track, so
   an empty stretch reads as measured silence rather than missing data. The
+  detail screen's live section, which has no card, uses the strip's `bare`
+  variant: no fill, a hairline `border` baseline that does the same job. The
   column header reads `interval`; the signal value carries its own smaller
   `dBm` unit (`-75 dBm`). A faint `›`
   marks the row as opening the detail screen; Hunt stays one step further, on

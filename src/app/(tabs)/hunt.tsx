@@ -2,20 +2,44 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@shopify/react-native-skia';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { useBle } from '@/ble/ble-provider';
-import { HISTORY_HZ, HISTORY_SECONDS, useDeviceStore } from '@/store/devices';
-import { bandFor, trendOf, type Band, type Trend } from '@/ble/signal';
+import { HISTORY_HZ, HISTORY_SECONDS, realNameOf, useDeviceStore } from '@/store/devices';
+import { findCalibration, useCalibrationsStore } from '@/store/calibrations';
+import {
+  CALIBRATION_SECONDS,
+  DISTANCE_LABELS,
+  calibrationOf,
+  distanceBucket,
+  measureAt1m,
+  type CalibrationSource,
+} from '@/ble/distance';
+import type { Term } from '@/components/detail/glossary';
+import { InfoButton, InfoSheet } from '@/components/detail/info-sheet';
+import { trendOf, type Band, type Trend } from '@/ble/signal';
 import { GateNotice } from '@/components/gate-notice';
-import { HuntMeter } from '@/components/hunt-meter';
+import { HuntRings } from '@/components/hunt-rings';
 import { Screen } from '@/components/screen';
 import { SignalTrace } from '@/components/signal-trace';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 
-const GAUGE = 240;
-const TRACE_HEIGHT = 56;
+/** Compact on purpose: the range reading below is the main event, the rings support it. */
+const RINGS_MAX = 220;
+const TRACE_HEIGHT = 40;
+/** Screen gutter on each side, from <Screen>. */
+const GUTTER = 16;
+
+/** Colour per distance bucket, nearest first, from the existing band ramp. */
+const BUCKET_BAND: Band[] = ['immediate', 'immediate', 'near', 'far', 'distant'];
+
+const CALIBRATION_COPY: Record<CalibrationSource, string> = {
+  user: 'Calibrated',
+  ibeacon: 'Beacon',
+  'tx-power': 'Tx power',
+  default: 'Uncalibrated',
+};
 
 const TREND_COPY: Record<Trend, string> = {
   approaching: '▲  WARMER',
@@ -32,18 +56,34 @@ function trendColour(trend: Trend, t: Palette): string {
 type Reading = {
   label: string;
   dbm: number;
-  band: Band;
+  /** Index into DISTANCE_LABELS, 0 nearest. */
+  bucket: number;
+  calibration: CalibrationSource;
   trend: Trend;
   best: number | null;
   bestAgo: number | null;
   gone: boolean;
 };
 
-function read(id: string): Reading {
+function read(id: string, previousBucket: number | null): Reading {
   const record = useDeviceStore.getState().devices[id];
   if (!record) {
-    return { label: '', dbm: -127, band: 'distant', trend: 'steady', best: null, bestAgo: null, gone: true };
+    return {
+      label: '',
+      dbm: -127,
+      bucket: DISTANCE_LABELS.length - 1,
+      calibration: 'default',
+      trend: 'steady',
+      best: null,
+      bestAgo: null,
+      gone: true,
+    };
   }
+  const saved = findCalibration(useCalibrationsStore.getState().calibrations, {
+    id,
+    name: realNameOf(record),
+  });
+  const calibration = calibrationOf(record, saved?.rssiAt1m ?? null);
   const history = record.history;
   let bestIndex = 0;
   for (let i = 1; i < history.length; i += 1) if (history[i] > history[bestIndex]) bestIndex = i;
@@ -51,12 +91,64 @@ function read(id: string): Reading {
   return {
     label: record.identity.label,
     dbm: Math.round(record.smoothed),
-    band: bandFor(record.smoothed),
+    bucket: distanceBucket(record.smoothed, calibration, previousBucket),
+    calibration: calibration.source,
     trend: trendOf(history),
     best: history.length ? Math.round(history[bestIndex]) : null,
     bestAgo: history.length ? Math.round((history.length - 1 - bestIndex) / HISTORY_HZ) : null,
     gone: false,
   };
+}
+
+/**
+ * Saves the last few seconds of signal as this device's strength at 1 m. It
+ * asks first and states the figure, so a tap made from the wrong spot costs
+ * nothing.
+ */
+function calibrate(id: string) {
+  const record = useDeviceStore.getState().devices[id];
+  if (!record) return;
+  const name = realNameOf(record);
+  const { calibrations, save, remove } = useCalibrationsStore.getState();
+  const existing = findCalibration(calibrations, { id, name });
+  const measured = measureAt1m(record.history, HISTORY_HZ);
+
+  if (measured === null) {
+    Alert.alert(
+      'Not enough signal yet',
+      `Keep the phone 1 m from the device for ${CALIBRATION_SECONDS} seconds, then try again.`
+    );
+    return;
+  }
+
+  const forget = existing
+    ? [
+        {
+          text: 'Remove calibration',
+          style: 'destructive' as const,
+          onPress: () => remove(existing.id),
+        },
+      ]
+    : [];
+  const rotating = name
+    ? ''
+    : '\n\nThis device broadcasts no name. If it changes its address, the calibration is lost.';
+
+  Alert.alert(
+    'Calibrate at 1 m',
+    `Is the phone 1 m from ${record.identity.label}, and has it been for the last ${CALIBRATION_SECONDS} seconds?\n\nThe signal there was ${measured} dBm. It becomes this device's strength at 1 m.${rotating}`,
+    [
+      ...forget,
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Save',
+        onPress: () => {
+          save({ id, name, rssiAt1m: measured });
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        },
+      },
+    ]
+  );
 }
 
 export default function HuntScreen() {
@@ -94,17 +186,24 @@ function Empty() {
 function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const [reading, setReading] = useState(() => read(id));
-  const lastBand = useRef<Band | null>(null);
+  const { width } = useWindowDimensions();
+  const ringsSize = Math.min(RINGS_MAX, width - GUTTER * 2);
+  const [reading, setReading] = useState(() => read(id, null));
+  const lastBucket = useRef<number | null>(null);
+
+  const [term, setTerm] = useState<Term | null>(null);
+  const [traceWidth, setTraceWidth] = useState(0);
 
   useEffect(() => {
-    lastBand.current = null;
-    setReading(read(id));
+    lastBucket.current = null;
+    setReading(read(id, null));
 
-    return useDeviceStore.subscribe(() => {
-      const next = read(id);
+    const update = () => {
+      const next = read(id, lastBucket.current);
       setReading((previous) =>
         previous.dbm === next.dbm &&
+        previous.bucket === next.bucket &&
+        previous.calibration === next.calibration &&
         previous.trend === next.trend &&
         previous.gone === next.gone &&
         previous.best === next.best
@@ -112,20 +211,31 @@ function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
           : next
       );
 
-      // One haptic per band crossing, never per frame. Arriving at the closest
-      // band is the moment worth a distinct, stronger cue.
-      if (!next.gone && next.band !== lastBand.current) {
-        if (lastBand.current !== null) {
-          if (next.band === 'immediate') {
+      // One haptic per distance-bucket change, never per frame; the bucket's
+      // hysteresis keeps an edge from buzzing. Arriving in the nearest bucket
+      // is the moment worth a distinct, stronger cue.
+      if (!next.gone && next.bucket !== lastBucket.current) {
+        if (lastBucket.current !== null) {
+          if (next.bucket === 0) {
             void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } else {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }
         }
-        lastBand.current = next.band;
+        lastBucket.current = next.bucket;
       }
-    });
+    };
+
+    const unsubscribeDevices = useDeviceStore.subscribe(update);
+    // A new calibration moves the estimate at once, not on the next packet.
+    const unsubscribeCalibrations = useCalibrationsStore.subscribe(update);
+    return () => {
+      unsubscribeDevices();
+      unsubscribeCalibrations();
+    };
   }, [id]);
+
+  const bucketColour = theme.bands[BUCKET_BAND[reading.bucket]];
 
   return (
     <Screen>
@@ -146,35 +256,70 @@ function Hunting({ id, onClear }: { id: string; onClear: () => void }) {
           </Text>
         </View>
       ) : (
-        <View style={styles.instrument}>
-          <HuntMeter id={id} width={GAUGE} />
-
-          <View style={styles.readout}>
-            <Text style={[styles.dbm, { color: theme.bands[reading.band] }]}>{reading.dbm}</Text>
-            <Text style={[styles.band, { color: theme.bands[reading.band] }]}>{reading.band}</Text>
+        <>
+          {/* The hero: what you glance at while walking. Takes the free height. */}
+          <View style={styles.hero}>
+            <HuntRings size={ringsSize} bucket={reading.bucket} colour={bucketColour} />
+            <View style={styles.readout}>
+              <Text style={[styles.distance, { color: bucketColour }]}>
+                {DISTANCE_LABELS[reading.bucket]}
+              </Text>
+              <Text style={[styles.trend, { color: trendColour(reading.trend, theme) }]}>
+                {TREND_COPY[reading.trend]}
+              </Text>
+            </View>
           </View>
 
-          <Text style={[styles.trend, { color: trendColour(reading.trend, theme) }]}>
-            {TREND_COPY[reading.trend]}
-          </Text>
+          {/* The detail: read when standing still. Anchored to the bottom. */}
+          <View style={styles.panel}>
+            <View style={styles.signal}>
+              <View style={styles.cardHead}>
+                <Text style={styles.cardLabel}>signal · last {HISTORY_SECONDS} s</Text>
+                <Text style={[styles.cardValue, { color: bucketColour }]}>{reading.dbm} dBm</Text>
+              </View>
+              <View
+                style={styles.traceWrap}
+                onLayout={(e) => setTraceWidth(e.nativeEvent.layout.width)}>
+                {traceWidth > 0 && (
+                  <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
+                    <SignalTrace id={id} x={0} y={2} width={traceWidth} height={TRACE_HEIGHT - 4} />
+                  </Canvas>
+                )}
+              </View>
+            </View>
 
-          {reading.best !== null && reading.bestAgo !== null ? (
-            <Text style={styles.best}>
-              strongest {reading.best} dBm · {reading.bestAgo}s ago
-            </Text>
-          ) : null}
+            <View style={styles.tiles}>
+              <View style={styles.tile}>
+                <Text style={styles.tileValue}>
+                  {reading.best === null ? '—' : `${reading.best} dBm`}
+                </Text>
+                <Text style={styles.tileCaption}>
+                  {reading.bestAgo === null ? 'strongest' : `strongest · ${reading.bestAgo} s ago`}
+                </Text>
+              </View>
 
-          <View style={styles.traceWrap}>
-            <Canvas style={StyleSheet.absoluteFill}>
-              <SignalTrace id={id} x={0} y={6} width={320} height={TRACE_HEIGHT - 12} />
-            </Canvas>
+              <View style={styles.tile}>
+                <View style={styles.tileHead}>
+                  <Text style={styles.tileValue} numberOfLines={1}>
+                    {CALIBRATION_COPY[reading.calibration]}
+                  </Text>
+                  <InfoButton term="distance" onInfo={setTerm} />
+                </View>
+                <Pressable onPress={() => calibrate(id)} hitSlop={12} accessibilityRole="button">
+                  <Text style={styles.calibrate}>
+                    {reading.calibration === 'user' ? 'Recalibrate' : 'Calibrate at 1 m'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
-          <Text style={styles.traceLabel}>last {HISTORY_SECONDS}s</Text>
-        </View>
+        </>
       )}
 
+      <InfoSheet term={term} onClose={() => setTerm(null)} />
+
       <Text style={styles.hint}>
-        Signal only — no direction. Walk, and follow the number up.
+        No direction — walk, and watch the range shrink.
       </Text>
     </Screen>
   );
@@ -186,16 +331,39 @@ const makeStyles = (t: Palette) =>
   title: { color: t.textPrimary, fontSize: 24, fontWeight: '700', flex: 1 },
   change: { color: t.signal, fontSize: 14, fontWeight: '600' },
 
-  instrument: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  readout: { alignItems: 'center', gap: 2 },
-  dbm: { fontSize: 64, fontFamily: 'monospace', fontWeight: '700', lineHeight: 70 },
-  band: { fontSize: 13, letterSpacing: 2, textTransform: 'uppercase', marginTop: 10 },
+  hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  readout: { alignItems: 'center', gap: 4 },
+  distance: { fontSize: 56, fontFamily: 'monospace', fontWeight: '700', lineHeight: 62 },
+  trend: { fontSize: 18, fontWeight: '700', letterSpacing: 2 },
 
-  trend: { fontSize: 18, fontWeight: '700', letterSpacing: 2, marginTop: 8 },
-  best: { color: t.textTertiary, fontSize: 12, fontFamily: 'monospace' },
+  panel: { gap: 8 },
+  // Bare, no card: the trace is a supporting line, not a panel of its own.
+  signal: { gap: 6, paddingHorizontal: 2, paddingBottom: 4 },
+  cardHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  cardLabel: { color: t.textTertiary, fontSize: 11 },
+  cardValue: { fontSize: 15, fontWeight: '700', fontFamily: 'monospace' },
+  traceWrap: { height: TRACE_HEIGHT },
 
-  traceWrap: { width: 320, height: TRACE_HEIGHT, marginTop: 8 },
-  traceLabel: { color: t.textTertiary, fontSize: 10, letterSpacing: 1 },
+  tiles: { flexDirection: 'row', gap: 8 },
+  tile: {
+    flex: 1,
+    backgroundColor: t.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: t.border,
+    padding: 12,
+    gap: 4,
+  },
+  tileHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  tileValue: {
+    color: t.textPrimary,
+    fontSize: 17,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+    flexShrink: 1,
+  },
+  tileCaption: { color: t.textSecondary, fontSize: 12 },
+  calibrate: { color: t.signal, fontSize: 13, fontWeight: '600' },
 
   emptyBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
   emptyLead: { color: t.textPrimary, fontSize: 20, fontWeight: '600' },

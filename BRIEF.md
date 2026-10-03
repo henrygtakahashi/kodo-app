@@ -66,10 +66,15 @@ and positioning reads an EMA; raw is retained per device for the diagnostics vie
 only. Shared by both components — the Scanner's signal column and the Radar's
 radius must agree.
 
-**No distance estimate in v1.0.** `txPowerLevel` is usually `null`, so a path-loss
-model would be uncalibrated guesswork, and a wrong metre figure is worse than no
-figure. The split: **Scanner shows dBm** (an honest measurement in its real unit),
-**Radar shows bands** (a derived judgement). Neither shows metres.
+**Distance in metres: Hunt only, and only as a range.** `txPowerLevel` is usually
+`null`, so a path-loss model is mostly uncalibrated guesswork, and a single metre
+figure ("3.2 m") would claim precision the signal does not have. Hunt
+therefore shows a doubling bucket (`< 1 m`, `1–2 m`, `2–4 m`, `4–8 m`, `8+ m`),
+labelled as an estimate and as uncalibrated when it is. Calibration comes from
+the user's own 1 m measurement, else an iBeacon's measured 1 m power, else the
+advertised Tx power, else a −59 dBm default (`src/ble/distance.ts`). **Scanner still shows dBm** (an honest
+measurement in its real unit) and no metres. Revised 2026-10-03: the user wanted
+distance on Hunt, and a range is the most the estimate supports.
 
 ---
 
@@ -164,13 +169,23 @@ a chart.
 ### Surface
 
 - One target, chosen from the device detail screen ("Hunt this device").
-- A moving-coil meter: needle position and colour follow signal strength, with
-  the dBm reading, the band, and the trend state (WARMER / COLDER / HOLDING).
+- Range rings centred on the target, one per doubling of distance (1, 2, 4,
+  8 m), with the estimated bucket lit and a pulse that quickens as it gets
+  nearer. Rings are symmetric, so they show distance and no direction.
+- The distance bucket as the large reading, with the dBm and calibration source
+  under it, and the trend state (WARMER / COLDER / HOLDING).
 - "strongest N dBm · Ns ago" — the best reading in the window and how long since,
   so you can tell whether you have already walked past it.
 - The RSSI trace as supporting detail, not the main event.
-- A haptic on each band crossing; a distinct, stronger one on reaching
-  `immediate`.
+- An ⓘ beside the calibration label opens a short explanation sheet.
+- "Calibrate at 1 m": the user holds the phone 1 m away, and the mean of the
+  last 3 s of signal is saved for that device after a confirm dialog that
+  states the figure. Saved per address with a broadcast-name fallback, the same
+  matching as favorites; the dialog warns when an unnamed device would lose it
+  on an address rotation. Recalibrate and remove from the same dialog.
+- A haptic on each distance-bucket change; a distinct, stronger one on
+  reaching `< 1 m`. Bucket changes need 2 dB of hysteresis, so noise at an edge
+  does not buzz.
 - **No device list.** A picker here would be Scanner again, which is the
   duplication this screen exists to avoid. With no target it says so in one
   line.
@@ -180,9 +195,9 @@ a chart.
 - Readable at arm's length while walking.
 - The advertisement stream never re-renders React — the §0 contract holds.
 - A stationary device reads HOLDING; noise must not read as motion.
-- Walking toward the target moves the needle unmistakably within ~2 seconds.
-- One haptic per band crossing, never per frame.
-- Nothing implies direction or distance in metres.
+- Walking toward the target changes the lit range unmistakably within ~2 seconds.
+- One haptic per bucket change, never per frame.
+- Nothing implies direction. Distance appears only as a labelled range.
 
 ---
 
@@ -251,7 +266,7 @@ Named explicitly so they do not creep in:
 |---|---|
 | 100% passive listening — no connections in v1.0 | hard rule above, §5 |
 | `lastSeen` TTL sweep, two-stage (3 s stale / 10 s expire) | §0 |
-| EMA smoothing; no distance estimate — dBm in Scanner, bands in Radar | §0 |
+| EMA smoothing; dBm in Scanner, distance range (estimate) only in Hunt | §0 |
 | Pulses not a sweep; angle is a deterministic id hash | DESIGN.md §4 |
 | Proximity bands use fixed RSSI thresholds, not auto-scaling | DESIGN.md §4 |
 | Unnamed-device identity: fallback chain + id-hash colour | §1 |

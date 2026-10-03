@@ -12,14 +12,15 @@ export type Term =
   | 'address'
   | 'advertisement'
   | 'connectable'
-  | 'packet';
+  | 'packet'
+  | 'distance';
 
 export const GLOSSARY: Record<Term, { title: string; body: string }> = {
   signal: {
     title: 'Signal strength (dBm)',
     body:
       'How strongly this phone hears the device, in decibel-milliwatts. Closer to zero is stronger: −45 is right next to you, −90 is barely audible.\n\n' +
-      'It is not a distance. Walls, bodies and the way a device is held all change it, so the app shows a band (immediate, near, far, distant) and whether the signal is rising or falling, never metres.',
+      'It is not a distance by itself. Walls, bodies and the way a device is held all change it, so this screen shows a band (immediate, near, far, distant) and whether the signal is rising or falling. Hunt turns it into a rough distance range.',
   },
   interval: {
     title: 'Advertising interval',
@@ -38,8 +39,8 @@ export const GLOSSARY: Record<Term, { title: string; body: string }> = {
   cadence: {
     title: 'Live signal and rhythm',
     body:
-      'The line is the signal strength over the last 20 seconds: higher is stronger.\n\n' +
-      'Each tick below it is one broadcast received in the last 10 seconds, at the moment it arrived. A solid block means the device broadcasts faster than the eye can separate.',
+      'Both rows cover the last 10 seconds, with now on the right.\n\n' +
+      'The line is the signal strength: higher is stronger. Each tick below it is one broadcast received, at the moment it arrived. A solid block means the device broadcasts faster than the eye can separate.',
   },
   address: {
     title: 'Address',
@@ -62,5 +63,12 @@ export const GLOSSARY: Record<Term, { title: string; body: string }> = {
     body:
       'The broadcast exactly as received, byte by byte. It is a run of fields, each one written as: a length byte, a type byte, then the data.\n\n' +
       'Android pads the packet with zeros to its full size; that padding is not part of what the device sent.',
+  },
+  distance: {
+    title: 'Distance estimate',
+    body:
+      'A guess from signal strength, so it shows a range, not an exact figure. Walls and bodies can make a device seem further away.\n\n' +
+      '"Uncalibrated" means the device does not say how strong it is, so the range can be off by 2–3 times. To fix it, hold the phone 1 m from the device for a few seconds and tap "Calibrate at 1 m".\n\n' +
+      'Without calibration, still follow the trend: a shrinking range and WARMER mean you are getting closer.',
   },
 };
