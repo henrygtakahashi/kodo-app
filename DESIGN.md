@@ -409,7 +409,8 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
   an empty stretch reads as measured silence rather than missing data. The
   detail screen's live section, which has no card, uses the strip's `bare`
   variant: no fill, a hairline `border` baseline that does the same job. The
-  column header reads `interval`; the signal value carries its own smaller
+  column headers read `broadcasts` (what a tick is; the 10 s window is
+  explained on the detail screen) and `rate · signal`; the signal value carries its own smaller
   `dBm` unit (`-75 dBm`). A faint `›`
   marks the row as opening the detail screen; Hunt stays one step further, on
   that screen. The vendor joins the id chip (`SAMSUNG·3F2A`) only when the label

@@ -21,9 +21,16 @@ import { KindIcon } from './kind-icon';
 
 export const ROW_HEIGHT = 68;
 const STRIP_INSET = 16;
-const LABEL_WIDTH = 150;
-const RIGHT_WIDTH = 78;
-const CHEVRON_WIDTH = 16;
+/**
+ * Names get the larger share; the right column is cut to what "-100 dBm"
+ * needs, so the strip keeps about 90 dp on a 360 dp phone. Much narrower and a
+ * 300 ms advertiser draws as a solid block, hiding the rhythm the strip shows.
+ */
+const LABEL_WIDTH = 162;
+const RIGHT_WIDTH = 58;
+const CHEVRON_WIDTH = 12;
+/** Space between the strip and the right column. */
+const STRIP_GAP = 6;
 /** How often the cadence strips' time axis advances. */
 const CLOCK_MS = 100;
 /** A dBm move this large shows at once; smaller ones wait for READOUT_MS. */
@@ -184,14 +191,14 @@ export function TransmitterList() {
   }, [scanning, clock]);
 
   const stripX = LABEL_WIDTH;
-  const stripWidth = Math.max(0, width - LABEL_WIDTH - RIGHT_WIDTH - CHEVRON_WIDTH - 8);
+  const stripWidth = Math.max(0, width - LABEL_WIDTH - RIGHT_WIDTH - CHEVRON_WIDTH - STRIP_GAP);
 
   return (
     <View style={styles.container} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <View style={styles.axis}>
         <Text style={[styles.axisLabel, styles.axisDevice]}>device</Text>
-        <Text style={[styles.axisLabel, styles.axisWindow]}>last 10s → now</Text>
-        <Text style={[styles.axisLabel, styles.axisUnits]}>interval</Text>
+        <Text style={[styles.axisLabel, styles.axisWindow]}>broadcasts</Text>
+        <Text style={[styles.axisLabel, styles.axisUnits]}>rate · signal</Text>
       </View>
 
       <ScrollView
