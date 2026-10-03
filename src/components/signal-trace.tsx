@@ -43,40 +43,42 @@ export function SignalTrace({ id, x, y, width, height, samples = HISTORY_LENGTH 
     });
   }, [id, history, colour]);
 
-  const path = useDerivedValue(() => {
+  // Line and fill come from one builder pass: the line is built, then the same
+  // builder is closed down to the floor of the scale for the fill. The fill
+  // grounds the trace, so a strong signal reads as a tall area rather than a
+  // line floating in empty space.
+  const shapes = useDerivedValue(() => {
     const points = history.value.slice(-samples);
-    const line = Skia.Path.Make();
-    if (points.length < 2) return line;
+    const builder = Skia.PathBuilder.Make();
+    if (points.length < 2) {
+      const empty = builder.detach();
+      return { line: empty, area: empty };
+    }
 
     // The x-axis is fixed to the full window, so a device seen for 3 s draws a
     // short trace on the right rather than stretching 3 s across 20 s of width.
     const step = width / (samples - 1);
     const offset = Math.max(0, samples - points.length);
     const span = RSSI_AT_CENTRE - RSSI_AT_RIM;
+    const floor = y + height;
+    const firstX = x + offset * step;
+    let lastX = firstX;
 
     for (let i = 0; i < points.length; i += 1) {
       const clamped = Math.min(RSSI_AT_CENTRE, Math.max(RSSI_AT_RIM, points[i]));
       const t = (clamped - RSSI_AT_RIM) / span; // 0 weakest, 1 strongest
-      const px = x + (offset + i) * step;
-      const py = y + height - t * height;
-      if (i === 0) line.moveTo(px, py);
-      else line.lineTo(px, py);
+      lastX = x + (offset + i) * step;
+      const py = floor - t * height;
+      if (i === 0) builder.moveTo(lastX, py);
+      else builder.lineTo(lastX, py);
     }
-    return line;
-  });
 
-  // The same line closed down to the floor of the scale. The fill grounds the
-  // trace, so a strong signal reads as a tall area rather than a line floating
-  // in empty space.
-  const area = useDerivedValue(() => {
-    const shape = path.value.copy();
-    const bounds = shape.getBounds();
-    if (bounds.width === 0) return shape;
-    shape.lineTo(bounds.x + bounds.width, y + height);
-    shape.lineTo(bounds.x, y + height);
-    shape.close();
-    return shape;
+    const line = builder.build();
+    const area = builder.lineTo(lastX, floor).lineTo(firstX, floor).close().detach();
+    return { line, area };
   });
+  const path = useDerivedValue(() => shapes.value.line);
+  const area = useDerivedValue(() => shapes.value.area);
   const fade = useDerivedValue(() => [`${colour.value}40`, `${colour.value}00`]);
 
   return (
