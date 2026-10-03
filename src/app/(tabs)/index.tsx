@@ -29,7 +29,8 @@ export default function ScannerScreen() {
     (state) =>
       state.filters.query.trim() !== '' ||
       state.filters.minRssi !== null ||
-      state.filters.namedOnly
+      state.filters.namedOnly ||
+      state.filters.favoritesOnly
   );
 
   if (gate.status !== 'ready') return <GateNotice gate={gate} />;
@@ -76,6 +77,13 @@ export default function ScannerScreen() {
               ? 'Nothing is broadcasting in range yet.'
               : 'Resume to pick the air back up.'}
           </Text>
+        </View>
+      ) : order.length === 0 && filtering ? (
+        // Filters persist across restarts, so an empty list on launch has to
+        // say why rather than look like nothing is broadcasting.
+        <View style={styles.empty}>
+          <Text style={styles.emptyLead}>Nothing matches.</Text>
+          <Text style={styles.emptyHint}>{total} hidden by the active filters.</Text>
         </View>
       ) : (
         <TransmitterList />

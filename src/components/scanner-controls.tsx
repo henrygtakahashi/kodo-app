@@ -85,12 +85,13 @@ export const ScannerControls = memo(function ScannerControls() {
   const query = useDeviceStore((state) => state.filters.query);
   const minRssi = useDeviceStore((state) => state.filters.minRssi);
   const namedOnly = useDeviceStore((state) => state.filters.namedOnly);
+  const favoritesOnly = useDeviceStore((state) => state.filters.favoritesOnly);
   const setFilters = useDeviceStore((state) => state.setFilters);
   const legacyOnly = useDeviceStore((state) => state.legacyOnly);
   const setLegacyOnly = useDeviceStore((state) => state.setLegacyOnly);
 
   const sortChanged = sortKey !== 'signal';
-  const active = [minRssi !== null, namedOnly, legacyOnly, sortChanged].filter(Boolean).length;
+  const active = [minRssi !== null, namedOnly, favoritesOnly, legacyOnly, sortChanged].filter(Boolean).length;
 
   return (
     <View style={styles.container}>
@@ -145,6 +146,9 @@ export const ScannerControls = memo(function ScannerControls() {
           {minRssi !== null && (
             <Pill label={`≥ ${minRssi} dBm`} onClear={() => setFilters({ minRssi: null })} />
           )}
+          {favoritesOnly && (
+            <Pill label="Favorites" onClear={() => setFilters({ favoritesOnly: false })} />
+          )}
           {namedOnly && <Pill label="Named only" onClear={() => setFilters({ namedOnly: false })} />}
           {legacyOnly && <Pill label="Legacy 4.x" onClear={() => setLegacyOnly(false)} />}
           {sortChanged && <Pill label="By name" onClear={() => setSortKey('signal')} />}
@@ -167,6 +171,12 @@ export const ScannerControls = memo(function ScannerControls() {
             value={minRssi}
             onChange={(next) => setFilters({ minRssi: next })}
             accessibilityLabel="Minimum signal"
+          />
+
+          <ToggleRow
+            label="Favorites only"
+            value={favoritesOnly}
+            onChange={(next) => setFilters({ favoritesOnly: next })}
           />
 
           <ToggleRow

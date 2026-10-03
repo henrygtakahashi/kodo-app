@@ -132,6 +132,22 @@ them into one loop is the mistake that leaves permanent ghosts on the radar.
 This is the contract the render layer depends on — see
 [DESIGN.md §2](./DESIGN.md#2-data-flow-contract).
 
+### Persistence
+
+`expo-sqlite/kv-store`, through `src/storage/kv.ts`. Chosen for its synchronous
+reads: a store hydrates before the first render, so the saved theme is on screen
+from the first frame rather than the default flashing first.
+
+| Store | What persists | How |
+|---|---|---|
+| Theme | `themeId` | zustand `persist`; an unknown id falls back to Graphite |
+| Favorites | address, broadcast name, label, kind | zustand `persist` |
+| Devices | sort, signal floor, named-only, favorites-only, legacy-only | by hand |
+
+The device store is persisted by hand because `persist` writes on every `set`,
+and that store is written 8+ times a second. A subscriber checks references
+first and writes only when a preference actually changed.
+
 ---
 
 ## 4. Expo Router entry point

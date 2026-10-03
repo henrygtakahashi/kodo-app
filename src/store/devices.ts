@@ -12,6 +12,8 @@ import { create } from 'zustand';
 import { hueFor } from '@/ble/hash';
 import { deriveIdentity, type Identity } from '@/ble/identity';
 import { bandFor, ema, type Band } from '@/ble/signal';
+import { readJSON, writeJSON } from '@/storage/kv';
+import { findFavorite, useFavoritesStore } from './favorites';
 
 /** Two-stage expiry (BRIEF.md §0). Advertising intervals reach 10.24 s by spec,
  *  so one threshold cannot both avoid flicker and avoid ghosts. */
@@ -168,6 +170,19 @@ export function advertisingIntervalMs(record: DeviceRecord): number | null {
   return Math.round(span / (record.packets - 1));
 }
 
+/** The name the device broadcasts, if any — not the label the app derives. */
+export function realNameOf(record: DeviceRecord): string | null {
+  return record.advertisement.name?.trim() || record.advertisement.localName?.trim() || null;
+}
+
+/** Whether a record is a favorite, against the current favorites. */
+export function favoriteMatch(record: DeviceRecord) {
+  return findFavorite(useFavoritesStore.getState().favorites, {
+    id: record.id,
+    name: realNameOf(record),
+  });
+}
+
 export type SortKey = 'signal' | 'name';
 
 export type Filters = {
@@ -175,7 +190,38 @@ export type Filters = {
   /** null means no floor. */
   minRssi: number | null;
   namedOnly: boolean;
+  favoritesOnly: boolean;
 };
+
+/**
+ * Sort, filters and the legacy scan setting survive a restart. The search text
+ * does not: a stale query on launch would hide devices for no visible reason.
+ *
+ * Persisted by hand rather than with the persist middleware, which writes on
+ * every `set` — and this store is written 8+ times a second.
+ */
+const PREFS_KEY = 'scanner-prefs';
+
+type Prefs = {
+  sortKey: SortKey;
+  minRssi: number | null;
+  namedOnly: boolean;
+  favoritesOnly: boolean;
+  legacyOnly: boolean;
+};
+
+function loadPrefs(): Prefs {
+  const saved = readJSON<Partial<Prefs>>(PREFS_KEY) ?? {};
+  return {
+    sortKey: saved.sortKey === 'name' ? 'name' : 'signal',
+    minRssi: typeof saved.minRssi === 'number' ? saved.minRssi : null,
+    namedOnly: saved.namedOnly === true,
+    favoritesOnly: saved.favoritesOnly === true,
+    legacyOnly: saved.legacyOnly === true,
+  };
+}
+
+const initialPrefs = loadPrefs();
 
 type DevicesState = {
   devices: Record<string, DeviceRecord>;
@@ -268,7 +314,8 @@ function createRecord(device: Device, rssi: number, now: number, times: number[]
   };
 }
 
-function matches(record: DeviceRecord, filters: Filters): boolean {
+function matches(record: DeviceRecord, filters: Filters, favorite: boolean): boolean {
+  if (filters.favoritesOnly && !favorite) return false;
   if (filters.namedOnly && !record.hasRealName) return false;
   if (filters.minRssi !== null && record.smoothed < filters.minRssi) return false;
 
@@ -293,12 +340,17 @@ function bucketOf(record: DeviceRecord, sortKey: SortKey): number {
 export const useDeviceStore = create<DevicesState>((set, get) => ({
   devices: {},
   order: [],
-  sortKey: 'signal',
-  filters: { query: '', minRssi: null, namedOnly: false },
+  sortKey: initialPrefs.sortKey,
+  filters: {
+    query: '',
+    minRssi: initialPrefs.minRssi,
+    namedOnly: initialPrefs.namedOnly,
+    favoritesOnly: initialPrefs.favoritesOnly,
+  },
   frozen: false,
   targetId: null,
   scanning: true,
-  legacyOnly: false,
+  legacyOnly: initialPrefs.legacyOnly,
   lastOrderAt: 0,
   membershipDirty: false,
 
@@ -430,11 +482,20 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
     if (!due) return;
 
     const previousIndex = new Map(order.map((id, index) => [id, index]));
-    const ids = Object.keys(devices).filter((id) => matches(devices[id], filters));
+    const favorites = useFavoritesStore.getState().favorites;
+    const starred = new Set<string>();
+    for (const id in devices) {
+      if (findFavorite(favorites, { id, name: realNameOf(devices[id]) })) starred.add(id);
+    }
+    const ids = Object.keys(devices).filter((id) => matches(devices[id], filters, starred.has(id)));
 
     ids.sort((a, b) => {
       const x = devices[a];
       const y = devices[b];
+
+      // Favorites are pinned above the chosen sort.
+      const pinned = Number(starred.has(b)) - Number(starred.has(a));
+      if (pinned !== 0) return pinned;
 
       if (sortKey === 'name') {
         const byName = x.identity.label.localeCompare(y.identity.label);
@@ -501,3 +562,32 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
 export function bandOf(record: Pick<DeviceRecord, 'smoothed'>): Band {
   return bandFor(record.smoothed);
 }
+
+// Write preferences only when one of them changes, never on the 8 Hz flush.
+let savedPrefs = JSON.stringify(initialPrefs);
+let seen = useDeviceStore.getState();
+useDeviceStore.subscribe((state) => {
+  // Cheap reference check first: almost every write is a flush.
+  if (
+    state.sortKey === seen.sortKey &&
+    state.filters === seen.filters &&
+    state.legacyOnly === seen.legacyOnly
+  ) {
+    return;
+  }
+  seen = state;
+  const prefs: Prefs = {
+    sortKey: state.sortKey,
+    minRssi: state.filters.minRssi,
+    namedOnly: state.filters.namedOnly,
+    favoritesOnly: state.filters.favoritesOnly,
+    legacyOnly: state.legacyOnly,
+  };
+  const json = JSON.stringify(prefs);
+  if (json === savedPrefs) return;
+  savedPrefs = json;
+  writeJSON(PREFS_KEY, prefs);
+});
+
+// Starring or unstarring changes pinning and the favorites filter at once.
+useFavoritesStore.subscribe(() => useDeviceStore.getState().recomputeOrder(true));

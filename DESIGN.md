@@ -362,6 +362,15 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
 
 **Resolved**
 
+- **Theme, sort and filters persist** across restarts (ARCHITECTURE.md §3).
+  The search text does not: a stale query on launch would hide devices for no
+  visible reason. When filters hide everything, the list says so.
+- **Favorites, starred only from the detail screen.** Pinned above the sort,
+  marked with an amber star, and filterable. Matched by address, then by exact
+  broadcast name, because many devices rotate their address; the detail screen
+  says which. An unnamed device with a rotating address cannot be recognised
+  again, and the detail screen says that when it is starred. Hunt stays
+  without a picker.
 - **Palettes are user-selectable** in Settings — see §8. Graphite is the default.
 - **Hunt reads on a moving-coil meter**, not a progress ring: printed face,
   etched scale, needle on a pivot with a counterweight tail. A needle shows a
@@ -394,8 +403,6 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
 
 **Still open**
 
-- **Theme choice is not persisted.** No storage dependency is installed, so it
-  resets to Graphite on a cold start. Needs fixing before release.
 - Dense cadence strips merge into a solid block above roughly 10 Hz. Density is
   itself the signal, so this may be correct as-is.
 - App name is still a placeholder.

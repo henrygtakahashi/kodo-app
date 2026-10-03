@@ -66,9 +66,6 @@ export default function SettingsScreen() {
           );
         })}
 
-        <Text style={styles.note}>
-          The choice is not saved yet, so it returns to Graphite when the app restarts.
-        </Text>
       </ScrollView>
     </Screen>
   );

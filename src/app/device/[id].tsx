@@ -1,3 +1,5 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as Haptics from 'expo-haptics';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -5,7 +7,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { base64ToHex } from '@/ble/base64';
 import { KIND_LABELS, SOURCE_LABELS } from '@/ble/kind';
 import { bandFor } from '@/ble/signal';
-import { advertisingIntervalMs, useDeviceStore } from '@/store/devices';
+import {
+  advertisingIntervalMs,
+  type DeviceRecord,
+  realNameOf,
+  useDeviceStore,
+} from '@/store/devices';
+import { findFavorite, useFavoritesStore } from '@/store/favorites';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 
@@ -49,6 +57,80 @@ function Hex({ label, value }: { label: string; value: string | null }) {
   );
 }
 
+/** Matches against the live favorites, so the star and the rows agree. */
+function useFavorite(record: DeviceRecord) {
+  const favorites = useFavoritesStore((state) => state.favorites);
+  const name = realNameOf(record);
+  return useMemo(
+    () => findFavorite(favorites, { id: record.id, name }),
+    [favorites, record.id, name]
+  );
+}
+
+function FavoriteButton({ record }: { record: DeviceRecord }) {
+  const theme = useTheme();
+  const match = useFavorite(record);
+  const starred = match !== null;
+
+  const toggle = () => {
+    void Haptics.selectionAsync();
+    const { add, remove } = useFavoritesStore.getState();
+    if (match) {
+      remove(match.favorite.id);
+      return;
+    }
+    add({
+      id: record.id,
+      name: realNameOf(record),
+      label: record.identity.label,
+      kind: record.identity.kind?.kind ?? null,
+    });
+  };
+
+  return (
+    <Pressable
+      onPress={toggle}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityState={{ selected: starred }}
+      accessibilityLabel={starred ? 'Remove from favorites' : 'Add to favorites'}>
+      <MaterialCommunityIcons
+        name={starred ? 'star' : 'star-outline'}
+        size={24}
+        color={starred ? theme.signal : theme.textSecondary}
+      />
+    </Pressable>
+  );
+}
+
+function FavoriteRow({ record }: { record: DeviceRecord }) {
+  const match = useFavorite(record);
+  const value = !match
+    ? 'No'
+    : match.by === 'address'
+      ? 'Yes'
+      : `Yes (matched by name, saved as ${match.favorite.id})`;
+  return <Row label="Favorite" value={value} />;
+}
+
+/**
+ * Without a broadcast name, the only link to a favorite is the address — and
+ * many devices rotate it. Said once, where the star is set, not discovered
+ * later as a favorite that silently stopped matching.
+ */
+function FavoriteNote({ record }: { record: DeviceRecord }) {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const match = useFavorite(record);
+  if (!match || realNameOf(record)) return null;
+  return (
+    <Text style={styles.note}>
+      This device broadcasts no name. If it changes its address, as phones and
+      Apple devices do every few minutes, it will not be recognised as a favorite.
+    </Text>
+  );
+}
+
 /**
  * Read-only by design. v1.0 never connects, so there is no pairing, no GATT
  * browser and no write affordance anywhere on this screen — every value here
@@ -79,7 +161,12 @@ export default function DeviceDetailScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ title: record.identity.label }} />
+      <Stack.Screen
+        options={{
+          title: record.identity.label,
+          headerRight: () => <FavoriteButton record={record} />,
+        }}
+      />
 
       <View style={styles.hero}>
         <View style={[styles.chip, { backgroundColor: theme.chipFill(record.hue) }]}>
@@ -111,6 +198,8 @@ export default function DeviceDetailScreen() {
         <Text style={styles.huntLabel}>Hunt this device</Text>
       </Pressable>
 
+      <FavoriteNote record={record} />
+
       <Section title="Signal">
         <Row label="Smoothed" value={`${Math.round(record.smoothed)} dBm`} />
         <Row label="Raw" value={`${record.rssi} dBm`} />
@@ -129,6 +218,7 @@ export default function DeviceDetailScreen() {
         <Row label="Name" value={ad.name} />
         <Row label="Local name" value={ad.localName} />
         <Row label="Vendor" value={record.identity.vendor} />
+        <FavoriteRow record={record} />
         <Row
           label="Kind"
           value={
@@ -234,5 +324,6 @@ const makeStyles = (t: Palette) =>
   },
   huntPressed: { backgroundColor: t.surfaceRaised },
   huntLabel: { color: t.signal, fontSize: 15, fontWeight: '700' },
+  note: { color: t.textTertiary, fontSize: 13, lineHeight: 18 },
   footnote: { color: t.textTertiary, fontSize: 12, textAlign: 'center', marginTop: 4 },
 });

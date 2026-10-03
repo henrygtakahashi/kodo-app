@@ -119,7 +119,9 @@ position across sessions and becomes recognisable by sight.
 - Sort: signal · name — **order is recomputed on a 3 s
   cooldown, not per RSSI tick**, suspended while the user is touching the list,
   and quantized so near-equal signals hold their position. See DESIGN.md §2.
-- Filter: name/id search, minimum RSSI, named-only
+- Filter: name/id search, minimum RSSI, named-only, favorites-only
+- Favorites: star a device on its detail screen; favorites pin to the top.
+  Theme, sort and filters persist across restarts (search text does not).
 - Detail screen: advertisement fields, derived values, raw record — read-only,
   with no connect affordance anywhere in the UI
 - Scan control: start/stop, with a visible scanning indicator

@@ -1,10 +1,17 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Canvas } from '@shopify/react-native-skia';
 import { router } from 'expo-router';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 
-import { advertisingIntervalMs, type DeviceRecord, useDeviceStore } from '@/store/devices';
+import {
+  advertisingIntervalMs,
+  type DeviceRecord,
+  favoriteMatch,
+  useDeviceStore,
+} from '@/store/devices';
+import { useFavoritesStore } from '@/store/favorites';
 import { KIND_LABELS } from '@/ble/kind';
 import { bandFor } from '@/ble/signal';
 import { useTheme } from '@/theme/use-theme';
@@ -40,6 +47,7 @@ function readRow(record: DeviceRecord | undefined) {
         ? `${vendor.toUpperCase()}·${suffix}`
         : suffix,
     kind: record?.identity.kind?.kind ?? null,
+    favorite: record ? favoriteMatch(record) !== null : false,
     hue: record?.hue ?? 160,
     band: bandFor(record?.smoothed ?? -127),
     dbm: Math.round(record?.smoothed ?? -127),
@@ -59,6 +67,7 @@ function worthShowing(shown: RowData, next: RowData, elapsed: number): boolean {
     shown.label !== next.label ||
     shown.chip !== next.chip ||
     shown.kind !== next.kind ||
+    shown.favorite !== next.favorite ||
     shown.stale !== next.stale ||
     shown.band !== next.band
   ) {
@@ -84,7 +93,16 @@ const Row = memo(function Row({ id }: { id: string }) {
     let shownAt = Date.now();
     setRow(shown);
 
-    return useDeviceStore.subscribe((state) => {
+    const show = (next: RowData) => {
+      shown = next;
+      shownAt = Date.now();
+      setRow(next);
+    };
+
+    // Starring happens on the detail screen; the row must reflect it at once.
+    const unsubscribeFavorites = useFavoritesStore.subscribe(() => show(readRow(last)));
+
+    const unsubscribeDevices = useDeviceStore.subscribe((state) => {
       const record = state.devices[id];
       // Every row hears every store write; `merge` only replaces records that
       // received packets, so an unchanged object means nothing to do.
@@ -94,10 +112,13 @@ const Row = memo(function Row({ id }: { id: string }) {
       const next = readRow(record);
       const now = Date.now();
       if (!worthShowing(shown, next, now - shownAt)) return;
-      shown = next;
-      shownAt = now;
-      setRow(next);
+      show(next);
     });
+
+    return () => {
+      unsubscribeFavorites();
+      unsubscribeDevices();
+    };
   }, [id]);
 
   return (
@@ -105,10 +126,13 @@ const Row = memo(function Row({ id }: { id: string }) {
       style={({ pressed }) => [styles.row, row.stale && styles.stale, pressed && styles.pressed]}
       onPress={() => router.push({ pathname: '/device/[id]', params: { id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${row.label}${row.kind ? `, ${KIND_LABELS[row.kind]}` : ''}, ${row.dbm} dBm, every ${formatInterval(row.interval)}`}
+      accessibilityLabel={`${row.favorite ? 'Favorite, ' : ''}${row.label}${row.kind ? `, ${KIND_LABELS[row.kind]}` : ''}, ${row.dbm} dBm, every ${formatInterval(row.interval)}`}
       accessibilityHint="Opens device details">
       <View style={styles.labelCell}>
         <View style={styles.title}>
+          {row.favorite && (
+            <MaterialCommunityIcons name="star" size={14} color={theme.signal} />
+          )}
           {row.kind && <KindIcon kind={row.kind} size={14} color={theme.textTertiary} />}
           <Text style={styles.label} numberOfLines={1}>
             {row.label}
