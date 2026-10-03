@@ -26,7 +26,7 @@ export default function TabsLayout() {
             sf="dot.radiowaves.left.and.right"
             md="bluetooth_searching"
           />
-          <NativeTabs.Trigger.Label>Scanner</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Label>Nearby</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="hunt">
           <NativeTabs.Trigger.Icon sf="location.north.line" md="my_location" />

@@ -84,7 +84,7 @@ function Empty() {
       <View style={styles.emptyBody}>
         <Text style={styles.emptyLead}>No target.</Text>
         <Text style={styles.emptyHint}>
-          Open a device in Scanner and choose “Hunt this device”.
+          Open a device in Nearby and choose “Hunt this device”.
         </Text>
       </View>
     </Screen>

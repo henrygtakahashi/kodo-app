@@ -362,6 +362,11 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
 
 **Resolved**
 
+- **The list screen is "Nearby"**, as both tab label and title, so the tab
+  predicts the screen it opens. "Scanner" named the tool rather than the
+  content, and "Transmitters" was too long for a bottom tab; the word stays in
+  the count line ("5 transmitters broadcasting"). Docs keep "Scanner" as the
+  internal name.
 - **Theme, sort and filters persist** across restarts (ARCHITECTURE.md §3).
   The search text does not: a stale query on launch would hide devices for no
   visible reason. When filters hide everything, the list says so.

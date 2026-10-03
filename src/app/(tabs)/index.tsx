@@ -38,7 +38,7 @@ export default function ScannerScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Transmitters</Text>
+        <Text style={styles.title}>Nearby</Text>
         <ScanToggle />
       </View>
 
@@ -46,7 +46,7 @@ export default function ScannerScreen() {
         <Text style={styles.count}>
           {filtering
             ? `${order.length} of ${total}`
-            : `${total} broadcasting nearby`}
+            : `${total} ${total === 1 ? 'transmitter' : 'transmitters'} broadcasting`}
         </Text>
         {!scanning && total > 0 ? <Text style={styles.frozenNote}>Snapshot held</Text> : null}
       </View>
