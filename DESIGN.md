@@ -104,8 +104,7 @@ the sort usable at all.
 **Cadence alone is not enough.** Raw RSSI swings ±10 dBm, so two devices of
 similar strength trade places on *every* recompute no matter how slow it is. The
 signal key is therefore quantized to 4 dBm buckets, with the row's previous
-position as the tiebreaker inside a bucket. `last-seen` is bucketed to whole
-seconds for the same reason.
+position as the tiebreaker inside a bucket.
 
 Bucketing, not an "ignore differences under N" comparator: that comparator is
 intransitive (a≈b, b≈c, yet a<c), and `Array.sort` is explicitly undefined for an
@@ -371,13 +370,21 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
 - **Scanner is organised by cadence** — see §1 and §4.
 - **Proximity bands: fixed thresholds** — see §4.
 - **Scanner row details.** Cadence ticks sit in a recessed `surface` track, so
-  an empty stretch reads as measured silence rather than missing data. Units
-  live in the column header (`interval · dBm`), not repeated per row.
-  `every · dBm` read as one phrase, and a stacked header broke the single line. A faint `›`
+  an empty stretch reads as measured silence rather than missing data. The
+  column header reads `interval`; the signal value carries its own smaller
+  `dBm` unit (`-75 dBm`). A faint `›`
   marks the row as opening the detail screen; Hunt stays one step further, on
   that screen. The vendor joins the id chip (`SAMSUNG·3F2A`) only when the label
   does not already name it, and stays text in the chip colours: no brand logos
   or brand colours.
+- **Scanner controls collapse behind one button.** A search field with a leading
+  icon and a tune button carrying a count badge. Sort, minimum signal and
+  named-only live in a panel that drops in under 150 ms; with the panel closed,
+  each active setting shows as a removable pill, so nothing hides state. The
+  signal floor is a four-detent segmented control instead of a chip that cycles
+  on tap, because four coarse steps are all RSSI supports and a cycling chip
+  does not say what the next tap does. Legacy-only sits below a rule: it is a
+  scan setting that restarts the radio, not a filter.
 - **Device-kind icons, only on evidence.** `src/ble/kind.ts` reads the kind from,
   in order: GAP Appearance (from the raw scan record), the Microsoft CDP
   device-type byte, the Apple message type, service UUIDs, then vendor naming

@@ -116,7 +116,7 @@ position across sessions and becomes recognisable by sight.
 - Device list — virtualized (`FlatList`/`FlashList`), never `@expo/ui` `List`
 - Row: name-or-fallback, signal, vendor, last-seen, advertising-mode marker
   (connectable vs. broadcast-only — diagnostic information, not an affordance)
-- Sort: signal · name · recent · oldest — **order is recomputed on a 3 s
+- Sort: signal · name — **order is recomputed on a 3 s
   cooldown, not per RSSI tick**, suspended while the user is touching the list,
   and quantized so near-equal signals hold their position. See DESIGN.md §2.
 - Filter: name/id search, minimum RSSI, named-only

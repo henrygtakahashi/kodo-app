@@ -128,7 +128,10 @@ const Row = memo(function Row({ id }: { id: string }) {
 
       <View style={styles.right}>
         <Text style={styles.interval}>{formatInterval(row.interval)}</Text>
-        <Text style={styles.dbm}>{row.dbm}</Text>
+        <Text style={styles.dbm}>
+          {row.dbm}
+          <Text style={styles.unit}> dBm</Text>
+        </Text>
       </View>
 
       <Text style={styles.chevron}>›</Text>
@@ -164,7 +167,7 @@ export function TransmitterList() {
       <View style={styles.axis}>
         <Text style={[styles.axisLabel, styles.axisDevice]}>device</Text>
         <Text style={[styles.axisLabel, styles.axisWindow]}>last 10s → now</Text>
-        <Text style={[styles.axisLabel, styles.axisUnits]}>interval · dBm</Text>
+        <Text style={[styles.axisLabel, styles.axisUnits]}>interval</Text>
       </View>
 
       <ScrollView
@@ -225,5 +228,6 @@ const makeStyles = (t: Palette) =>
   right: { width: RIGHT_WIDTH, alignItems: 'flex-end', gap: 2 },
   interval: { color: t.textPrimary, fontSize: 14, fontFamily: 'monospace' },
   dbm: { color: t.textTertiary, fontSize: 12, fontFamily: 'monospace' },
+  unit: { fontSize: 11 },
   chevron: { width: CHEVRON_WIDTH, textAlign: 'right', color: t.textTertiary, fontSize: 17 },
 });

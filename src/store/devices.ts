@@ -168,7 +168,7 @@ export function advertisingIntervalMs(record: DeviceRecord): number | null {
   return Math.round(span / (record.packets - 1));
 }
 
-export type SortKey = 'signal' | 'name' | 'first-seen' | 'last-seen';
+export type SortKey = 'signal' | 'name';
 
 export type Filters = {
   query: string;
@@ -283,10 +283,6 @@ function matches(record: DeviceRecord, filters: Filters): boolean {
 /** Quantized sort key. Equal buckets fall through to the previous position. */
 function bucketOf(record: DeviceRecord, sortKey: SortKey): number {
   switch (sortKey) {
-    case 'first-seen':
-      return record.firstSeen;
-    case 'last-seen':
-      return -Math.floor(record.lastSeen / 1000); // whole seconds, newest first
     case 'name':
       return 0; // name has its own comparator; no quantization needed
     default:
