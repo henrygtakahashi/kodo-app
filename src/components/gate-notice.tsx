@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { getBleManager } from '@/ble/manager';
 import type { Gate } from '@/ble/use-ble-gate';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
@@ -13,6 +12,19 @@ type Copy = {
 };
 
 const retryAction = { label: 'Try again', run: (gate: Gate) => gate.retry() };
+
+/**
+ * Asks the system to show its "Turn on Bluetooth?" dialog. BleManager.enable()
+ * calls BluetoothAdapter.enable(), which Android removed for apps targeting
+ * SDK 33+: it fails, and the button did nothing. The gate's state listener
+ * picks up PoweredOn on its own once the user accepts, so nothing waits here.
+ * Falls back to the Bluetooth settings screen if the intent cannot launch.
+ */
+function requestBluetoothOn() {
+  Linking.sendIntent('android.bluetooth.adapter.action.REQUEST_ENABLE').catch(() =>
+    Linking.sendIntent('android.settings.BLUETOOTH_SETTINGS').catch(() => Linking.openSettings())
+  );
+}
 
 /**
  * One screen per gate failure, each with a way out. Copy is distinct per state
@@ -38,12 +50,7 @@ const COPY: Record<Exclude<Gate['status'], 'ready'>, Copy> = {
   'bluetooth-off': {
     title: 'Bluetooth is off',
     body: 'Turn Bluetooth on to scan for nearby devices.',
-    action: {
-      label: 'Turn on Bluetooth',
-      // Android-only API; it is a no-op to call it anywhere else, and this app
-      // is Android-only for now.
-      run: () => void getBleManager().enable().catch(() => undefined),
-    },
+    action: { label: 'Turn on Bluetooth', run: requestBluetoothOn },
   },
   'location-off': {
     title: 'Location services are off',
