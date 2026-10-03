@@ -197,7 +197,9 @@ export function TransmitterList() {
     <View style={styles.container} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <View style={styles.axis}>
         <Text style={[styles.axisLabel, styles.axisDevice]}>device</Text>
-        <Text style={[styles.axisLabel, styles.axisWindow]}>broadcasts</Text>
+        <Text style={[styles.axisLabel, styles.axisWindow]} numberOfLines={1}>
+          broadcasts · 10s
+        </Text>
         <Text style={[styles.axisLabel, styles.axisUnits]}>rate · signal</Text>
       </View>
 
