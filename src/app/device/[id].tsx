@@ -131,6 +131,9 @@ function IdentitySection({
  * What the device is, in words a newcomer can read: "Samsung watch · accepts
  * connections". Stable facts only. Band and rate already live in the hero and
  * the tiles, and repeating them here made the line change every second.
+ *
+ * The "what" part is dropped when it would only repeat the title: a device
+ * labelled by its vendor ("Apple") or not identified at all ("Unknown device").
  */
 function summaryOf(record: DeviceRecord): string {
   const kind = record.identity.kind ? KIND_LABELS[record.identity.kind.kind].toLowerCase() : null;
@@ -138,11 +141,14 @@ function summaryOf(record: DeviceRecord): string {
   const what =
     vendor && kind ? `${vendor} ${kind}` : vendor ?? (kind ? kind[0].toUpperCase() + kind.slice(1) : null);
 
+  const repeatsTitle = !what || what.toLowerCase() === record.identity.label.toLowerCase();
+
   const parts = [
-    what ?? 'Unidentified device',
+    repeatsTitle ? null : what,
     record.isConnectable === null ? null : record.isConnectable ? 'accepts connections' : 'broadcast only',
   ];
-  return parts.filter(Boolean).join(' · ');
+  const line = parts.filter(Boolean).join(' · ');
+  return line && line[0].toUpperCase() + line.slice(1);
 }
 
 /**
@@ -190,12 +196,12 @@ export default function DeviceDetailScreen() {
 
         <View style={styles.hero}>
           <View style={[styles.badge, { backgroundColor: theme.chipFill(record.hue) }]}>
+            {/* A generic glyph when the kind is unknown: the address tag already
+                sits under the name, and in the badge it read as a mystery number. */}
             {kind ? (
               <KindIcon kind={kind} size={30} color={theme.chipInk(record.hue)} />
             ) : (
-              <Text style={[styles.badgeText, { color: theme.chipInk(record.hue) }]}>
-                {record.identity.suffix}
-              </Text>
+              <MaterialCommunityIcons name="bluetooth" size={30} color={theme.chipInk(record.hue)} />
             )}
           </View>
           <View style={styles.heroBody}>
@@ -215,7 +221,10 @@ export default function DeviceDetailScreen() {
           </View>
         </View>
 
-        <Text style={styles.summary}>{summaryOf(record)}</Text>
+        {(() => {
+          const summary = summaryOf(record);
+          return summary ? <Text style={styles.summary}>{summary}</Text> : null;
+        })()}
 
         <LiveCard id={record.id} onInfo={onInfo} />
 
@@ -284,7 +293,6 @@ const makeStyles = (t: Palette) =>
 
     hero: { flexDirection: 'row', alignItems: 'center', gap: 14 },
     badge: { width: 60, height: 60, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-    badgeText: { fontSize: 14, fontFamily: 'monospace', fontWeight: '700' },
     heroBody: { flex: 1, gap: 3 },
     heroTitle: { color: t.textPrimary, fontSize: 22, fontWeight: '700' },
     heroSub: { color: t.textTertiary, fontSize: 12, fontFamily: 'monospace' },
