@@ -10,8 +10,12 @@ import type { DeviceRecord } from '@/store/devices';
  * "3.2 m". A body between phone and target costs another 5-10 dB on its own.
  */
 
-/** Indoor path-loss exponent. Free space is 2; rooms with people run 2-4. */
-export const PATH_LOSS_EXPONENT = 2.5;
+/**
+ * Indoor path-loss exponent. Free space is 2; rooms with people run 2-4, and a
+ * body-worn device (a watch on a wrist) sits at the high end. 3 makes each
+ * doubling of distance 9 dB, wider than the swing from turning a wrist.
+ */
+export const PATH_LOSS_EXPONENT = 3;
 
 /** Typical phone-measured RSSI at 1 m for a 0 dBm BLE advertiser. */
 const DEFAULT_RSSI_AT_1M = -59;
@@ -53,18 +57,49 @@ export function calibrationOf(record: DeviceRecord, measuredAt1m: number | null)
   return { rssiAt1m: DEFAULT_RSSI_AT_1M, source: 'default' };
 }
 
-/** How much recent history a calibration averages: long enough to cancel noise. */
-export const CALIBRATION_SECONDS = 3;
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
 /**
- * RSSI at 1 m from the last few seconds of smoothed history. Null until there
- * is enough history to average, since one sample carries the full noise.
+ * How much history the distance reads. The store's smoothing settles in about
+ * 0.35 s, which is right for the dBm figure but lets a turned wrist or a hand
+ * in the way move the distance by a whole bucket. A median ignores those
+ * moments instead of averaging them in.
+ */
+export const DISTANCE_SECONDS = 2;
+
+/** The signal the distance is computed from: the median of the last few seconds. */
+export function steadyRssi(history: number[], samplesPerSecond: number, fallback: number): number {
+  const recent = history.slice(-DISTANCE_SECONDS * samplesPerSecond);
+  return recent.length ? median(recent) : fallback;
+}
+
+/** How long the phone must be held still at 1 m. */
+export const CALIBRATION_SECONDS = 5;
+
+/**
+ * RSSI at 1 m: the median of the last few seconds, so a moment with the
+ * antenna facing the phone cannot set the scale. Null until there is enough
+ * history, since a single sample carries the full noise.
  */
 export function measureAt1m(history: number[], samplesPerSecond: number): number | null {
   const count = CALIBRATION_SECONDS * samplesPerSecond;
   if (history.length < count) return null;
-  const recent = history.slice(-count);
-  return Math.round(recent.reduce((a, b) => a + b, 0) / count);
+  return Math.round(median(history.slice(-count)));
+}
+
+/**
+ * Typical devices read about -50 to -65 dBm at 1 m. A calibration far outside
+ * that usually means the phone was not at 1 m, and it skews every range after
+ * it, so the confirm dialog says so.
+ */
+export function implausibleAt1m(measured: number): 'too-strong' | 'too-weak' | null {
+  if (measured > -48) return 'too-strong';
+  if (measured < -75) return 'too-weak';
+  return null;
 }
 
 export function estimateMetres(rssi: number, calibration: Calibration): number {
@@ -76,7 +111,7 @@ export const DISTANCE_EDGES = [1, 2, 4, 8] as const;
 export const DISTANCE_LABELS = ['< 1 m', '1–2 m', '2–4 m', '4–8 m', '8+ m'] as const;
 
 /** A bucket change must clear its edge by this much, so noise at an edge cannot flap it. */
-export const BUCKET_HYSTERESIS_DB = 2;
+export const BUCKET_HYSTERESIS_DB = 3;
 
 function rssiAtMetres(metres: number, calibration: Calibration): number {
   return calibration.rssiAt1m - 10 * PATH_LOSS_EXPONENT * Math.log10(metres);

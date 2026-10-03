@@ -12,7 +12,9 @@ import {
   DISTANCE_LABELS,
   calibrationOf,
   distanceBucket,
+  implausibleAt1m,
   measureAt1m,
+  steadyRssi,
   type CalibrationSource,
 } from '@/ble/distance';
 import type { Term } from '@/components/detail/glossary';
@@ -91,7 +93,11 @@ function read(id: string, previousBucket: number | null): Reading {
   return {
     label: record.identity.label,
     dbm: Math.round(record.smoothed),
-    bucket: distanceBucket(record.smoothed, calibration, previousBucket),
+    bucket: distanceBucket(
+      steadyRssi(history, HISTORY_HZ, record.smoothed),
+      calibration,
+      previousBucket
+    ),
     calibration: calibration.source,
     trend: trendOf(history),
     best: history.length ? Math.round(history[bestIndex]) : null,
@@ -130,13 +136,20 @@ function calibrate(id: string) {
         },
       ]
     : [];
+  const plausibility = implausibleAt1m(measured);
+  const odd =
+    plausibility === 'too-strong'
+      ? '\n\nThat is stronger than most devices read at 1 m. If the phone was closer, every distance will read too far.'
+      : plausibility === 'too-weak'
+        ? '\n\nThat is weaker than most devices read at 1 m. If something was in the way, every distance will read too close.'
+        : '';
   const rotating = name
     ? ''
     : '\n\nThis device broadcasts no name. If it changes its address, the calibration is lost.';
 
   Alert.alert(
     'Calibrate at 1 m',
-    `Is the phone 1 m from ${record.identity.label}, and has it been for the last ${CALIBRATION_SECONDS} seconds?\n\nThe signal there was ${measured} dBm. It becomes this device's strength at 1 m.${rotating}`,
+    `Is the phone 1 m from ${record.identity.label}, and has it been for the last ${CALIBRATION_SECONDS} seconds?\n\nThe signal there was ${measured} dBm. It becomes this device's strength at 1 m.${odd}${rotating}`,
     [
       ...forget,
       { text: 'Cancel', style: 'cancel' },

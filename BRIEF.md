@@ -178,9 +178,13 @@ a chart.
   so you can tell whether you have already walked past it.
 - The RSSI trace as supporting detail, not the main event.
 - An ⓘ beside the calibration label opens a short explanation sheet.
-- "Calibrate at 1 m": the user holds the phone 1 m away, and the mean of the
-  last 3 s of signal is saved for that device after a confirm dialog that
-  states the figure. Saved per address with a broadcast-name fallback, the same
+- The distance reads the median of the last 2 s of signal, not the live
+  smoothed value, so a turned wrist or a hand in the way does not move it a
+  whole bucket. Path-loss exponent 3 (9 dB per doubling), 3 dB hysteresis.
+- "Calibrate at 1 m": the user holds the phone 1 m away, and the median of the
+  last 5 s of signal is saved for that device after a confirm dialog that
+  states the figure, and warns when it is outside the usual −48…−75 dBm at
+  1 m. Saved per address with a broadcast-name fallback, the same
   matching as favorites; the dialog warns when an unnamed device would lose it
   on an address rotation. Recalibrate and remove from the same dialog.
 - A haptic on each distance-bucket change; a distinct, stronger one on
