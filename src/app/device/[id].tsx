@@ -66,7 +66,7 @@ function FavoriteButton({ record }: { record: DeviceRecord }) {
       accessibilityLabel={starred ? 'Remove from favorites' : 'Add to favorites'}>
       <MaterialCommunityIcons
         name={starred ? 'star' : 'star-outline'}
-        size={24}
+        size={28}
         color={starred ? theme.signal : theme.textSecondary}
       />
     </Pressable>
@@ -189,10 +189,8 @@ export default function DeviceDetailScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* The hero carries the name; the header stays empty but for the star. */}
-        <Stack.Screen
-          options={{ title: '', headerRight: () => <FavoriteButton record={record} /> }}
-        />
+        {/* The hero carries the name and the star; the header keeps only the back arrow. */}
+        <Stack.Screen options={{ title: '' }} />
 
         <View style={styles.hero}>
           <View style={[styles.badge, { backgroundColor: theme.chipFill(record.hue) }]}>
@@ -213,12 +211,8 @@ export default function DeviceDetailScreen() {
               {stale ? ' · not heard recently' : ' · live'}
             </Text>
           </View>
-          <View style={styles.heroSignal}>
-            <Text style={[styles.heroRssi, { color: theme.bands[band] }]}>
-              {Math.round(record.smoothed)}
-            </Text>
-            <Text style={styles.heroUnit}>dBm</Text>
-          </View>
+          {/* The live dBm is in the Signal tile below; the hero holds what is stable. */}
+          <FavoriteButton record={record} />
         </View>
 
         {(() => {
@@ -296,9 +290,6 @@ const makeStyles = (t: Palette) =>
     heroBody: { flex: 1, gap: 3 },
     heroTitle: { color: t.textPrimary, fontSize: 22, fontWeight: '700' },
     heroSub: { color: t.textTertiary, fontSize: 12, fontFamily: 'monospace' },
-    heroSignal: { alignItems: 'flex-end' },
-    heroRssi: { fontSize: 30, fontFamily: 'monospace', fontWeight: '700' },
-    heroUnit: { color: t.textTertiary, fontSize: 11, fontFamily: 'monospace' },
     summary: { color: t.textSecondary, fontSize: 15, lineHeight: 21, marginTop: -4 },
 
     hunt: {

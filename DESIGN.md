@@ -363,7 +363,7 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
 **Resolved**
 
 - **The detail screen is layered for newcomers and experts.** Top to bottom:
-  hero (kind icon, name, live dBm) and a one-line plain summary of what the
+  hero (kind icon, name, favourite star; the live dBm lives in the Signal tile) and a one-line plain summary of what the
   device is ("Samsung watch · accepts connections"). Stable facts only: band and
   rate are already in the hero and tiles, and repeating them made the line
   change every second; the live trace and cadence strip, bare (no card) on
