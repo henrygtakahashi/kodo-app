@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
+import { ScreenTitle } from '@/components/screen-title';
 import { useTheme, useThemeStore } from '@/theme/use-theme';
 import { themes, type Palette, type ThemeId } from '@/theme/themes';
 
@@ -34,7 +35,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <Text style={styles.title}>Settings</Text>
+      <ScreenTitle title="Settings" />
 
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.sectionLabel}>Theme</Text>
@@ -86,7 +87,6 @@ const previewStyles = StyleSheet.create({
 
 const makeStyles = (t: Palette) =>
   StyleSheet.create({
-    title: { color: t.textPrimary, fontSize: 28, fontWeight: '700' },
     body: { gap: 10, paddingTop: 8, paddingBottom: 32 },
     sectionLabel: { color: t.textTertiary, fontSize: 12, letterSpacing: 1 },
     option: {

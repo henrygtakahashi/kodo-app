@@ -26,6 +26,7 @@ import { HuntRings } from '@/components/hunt-rings';
 import { KindIcon } from '@/components/kind-icon';
 import type { DeviceKind } from '@/ble/kind';
 import { Screen } from '@/components/screen';
+import { ScreenTitle } from '@/components/screen-title';
 import { SignalTrace } from '@/components/signal-trace';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
@@ -194,7 +195,7 @@ function Empty() {
   const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <Screen>
-      <Text style={styles.title}>Hunt</Text>
+      <ScreenTitle title="Hunt" />
       <View style={styles.emptyBody}>
         <Text style={styles.emptyLead}>No target.</Text>
         <Text style={styles.emptyHint}>
@@ -265,17 +266,17 @@ function Hunting({ id }: { id: string }) {
 
   return (
     <Screen>
-      <View style={styles.header}>
-        {/* Same glyphs as Nearby and the detail screen, generic when the kind is unknown. */}
-        {reading.kind ? (
-          <KindIcon kind={reading.kind} size={22} color={theme.textSecondary} />
-        ) : (
-          <MaterialCommunityIcons name="bluetooth" size={22} color={theme.textSecondary} />
-        )}
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {reading.label || 'Device'}
-        </Text>
-      </View>
+      <ScreenTitle
+        title={reading.label || 'Device'}
+        // Same glyphs as Nearby and the detail screen, generic when the kind is unknown.
+        leading={
+          reading.kind ? (
+            <KindIcon kind={reading.kind} size={24} color={theme.textSecondary} />
+          ) : (
+            <MaterialCommunityIcons name="bluetooth" size={24} color={theme.textSecondary} />
+          )
+        }
+      />
 
       {reading.gone ? (
         <View style={styles.emptyBody}>
@@ -366,9 +367,6 @@ function Hunting({ id }: { id: string }) {
 
 const makeStyles = (t: Palette) =>
   StyleSheet.create({
-  title: { color: t.textPrimary, fontSize: 24, fontWeight: '700' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerTitle: { color: t.textPrimary, fontSize: 24, fontWeight: '700', flexShrink: 1 },
 
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   readout: { alignItems: 'center', gap: 4 },

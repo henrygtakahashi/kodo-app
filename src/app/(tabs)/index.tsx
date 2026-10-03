@@ -7,6 +7,7 @@ import { ScanToggle } from '@/components/scan-toggle';
 import { ScannerControls } from '@/components/scanner-controls';
 import { TransmitterList } from '@/components/transmitter-list';
 import { Screen } from '@/components/screen';
+import { ScreenTitle } from '@/components/screen-title';
 import { useDeviceStore } from '@/store/devices';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
@@ -37,10 +38,7 @@ export default function ScannerScreen() {
 
   return (
     <Screen>
-      <View style={styles.header}>
-        <Text style={styles.title}>Nearby</Text>
-        <ScanToggle />
-      </View>
+      <ScreenTitle title="Nearby" trailing={<ScanToggle />} />
 
       <View style={styles.subheader}>
         <Text style={styles.count}>
@@ -94,9 +92,7 @@ export default function ScannerScreen() {
 
 const makeStyles = (t: Palette) =>
   StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   subheader: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
-  title: { color: t.textPrimary, fontSize: 28, fontWeight: '700' },
   count: { color: t.textTertiary, fontSize: 14 },
   frozenNote: { color: t.warning, fontSize: 12 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
