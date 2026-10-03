@@ -105,6 +105,11 @@ function appearanceOf(rawRecords: string[]): number | null {
   return null;
 }
 
+/** Kind for a raw Appearance value, or null for categories with no kind. */
+export function appearanceKind(value: number): DeviceKind | null {
+  return APPEARANCE_CATEGORIES[value >> 6] ?? null;
+}
+
 // --- 2. Microsoft CDP beacon ---------------------------------------------------
 
 const MICROSOFT_COMPANY_ID = 0x0006;

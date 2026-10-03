@@ -1,12 +1,23 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Haptics from 'expo-haptics';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import React, { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { base64ToHex } from '@/ble/base64';
 import { KIND_LABELS, SOURCE_LABELS } from '@/ble/kind';
-import { bandFor } from '@/ble/signal';
+import { bandFor, trendOf } from '@/ble/signal';
+import type { Term } from '@/components/detail/glossary';
+import { InfoSheet } from '@/components/detail/info-sheet';
+import {
+  BroadcastSection,
+  GlanceTiles,
+  LiveCard,
+  PacketSection,
+  Row,
+  Section,
+  rateWords,
+} from '@/components/detail/sections';
+import { KindIcon } from '@/components/kind-icon';
 import {
   advertisingIntervalMs,
   type DeviceRecord,
@@ -16,46 +27,6 @@ import {
 import { findFavorite, useFavoritesStore } from '@/store/favorites';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
-
-function Row({ label, value }: { label: string; value: string | null }) {
-  const theme = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue} selectable>
-        {value ?? '—'}
-      </Text>
-    </View>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const theme = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionBody}>{children}</View>
-    </View>
-  );
-}
-
-function Hex({ label, value }: { label: string; value: string | null }) {
-  const theme = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
-  // Decoding is pure and the input rarely changes; recomputing it on every
-  // render would redo the work at the store's update rate.
-  const hex = useMemo(() => (value ? base64ToHex(value) : '—'), [value]);
-  return (
-    <View style={styles.hexBlock}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.hex} selectable>
-        {hex}
-      </Text>
-    </View>
-  );
-}
 
 /** Matches against the live favorites, so the star and the rows agree. */
 function useFavorite(record: DeviceRecord) {
@@ -103,14 +74,10 @@ function FavoriteButton({ record }: { record: DeviceRecord }) {
   );
 }
 
-function FavoriteRow({ record }: { record: DeviceRecord }) {
-  const match = useFavorite(record);
-  const value = !match
-    ? 'No'
-    : match.by === 'address'
-      ? 'Yes'
-      : `Yes (matched by name, saved as ${match.favorite.id})`;
-  return <Row label="Favorite" value={value} />;
+function favoriteText(match: ReturnType<typeof useFavorite>): string {
+  if (!match) return 'No';
+  if (match.by === 'address') return 'Yes';
+  return `Yes, matched by name (saved as ${match.favorite.id})`;
 }
 
 /**
@@ -118,29 +85,85 @@ function FavoriteRow({ record }: { record: DeviceRecord }) {
  * many devices rotate it. Said once, where the star is set, not discovered
  * later as a favorite that silently stopped matching.
  */
-function FavoriteNote({ record }: { record: DeviceRecord }) {
-  const theme = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+function FavoriteNote({ record, styles }: { record: DeviceRecord; styles: Styles }) {
   const match = useFavorite(record);
   if (!match || realNameOf(record)) return null;
   return (
     <Text style={styles.note}>
-      This device broadcasts no name. If it changes its address, as phones and
-      Apple devices do every few minutes, it will not be recognised as a favorite.
+      This device broadcasts no name. If it changes its address, as phones and Apple devices do
+      every few minutes, it will not be recognised as a favorite.
     </Text>
   );
+}
+
+function IdentitySection({
+  record,
+  onInfo,
+}: {
+  record: DeviceRecord;
+  onInfo: (term: Term) => void;
+}) {
+  const match = useFavorite(record);
+  const { identity, advertisement: ad } = record;
+  const name = ad.name?.trim() || null;
+  const localName = ad.localName?.trim() || null;
+
+  return (
+    <Section title="Identity">
+      <Row label="Address" value={record.id} term="address" onInfo={onInfo} />
+      {name && <Row label="Name" value={name} />}
+      {/* Usually identical to the name; only worth a row when it says something else. */}
+      {localName && localName !== name && <Row label="Local name" value={localName} />}
+      <Row label="Vendor" value={identity.vendor ?? 'Not identified'} />
+      <Row
+        label="Kind"
+        value={
+          identity.kind
+            ? `${KIND_LABELS[identity.kind.kind]}, from ${SOURCE_LABELS[identity.kind.source]}`
+            : 'Not identified'
+        }
+      />
+      <Row label="Favorite" value={favoriteText(match)} />
+    </Section>
+  );
+}
+
+/**
+ * One line a newcomer can read without any of the numbers below:
+ * "Samsung watch · near · 9 per second · accepts connections".
+ */
+function summaryOf(record: DeviceRecord, interval: number | null): string {
+  const kind = record.identity.kind ? KIND_LABELS[record.identity.kind.kind].toLowerCase() : null;
+  const vendor = record.identity.vendor;
+  const what =
+    vendor && kind ? `${vendor} ${kind}` : vendor ?? (kind ? kind[0].toUpperCase() + kind.slice(1) : null);
+
+  const parts = [
+    what,
+    bandFor(record.smoothed),
+    interval === null ? null : rateWords(interval),
+    record.isConnectable === null ? null : record.isConnectable ? 'accepts connections' : 'broadcast only',
+  ];
+  return parts.filter(Boolean).join(' · ');
 }
 
 /**
  * Read-only by design. v1.0 never connects, so there is no pairing, no GATT
  * browser and no write affordance anywhere on this screen — every value here
  * came from the advertisement (BRIEF.md §1).
+ *
+ * Layered so a newcomer can stop early and an expert can keep scrolling: a
+ * plain summary and the live signal, numbers with their meaning underneath,
+ * the decoded broadcast, and the raw bytes last and collapsed. Jargon carries
+ * an ⓘ instead of inline explanations.
  */
 export default function DeviceDetailScreen() {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const record = useDeviceStore((state) => state.devices[id]);
+  const [term, setTerm] = useState<Term | null>(null);
+  const onInfo = useCallback((next: Term) => setTerm(next), []);
 
   if (!record) {
     return (
@@ -156,174 +179,133 @@ export default function DeviceDetailScreen() {
 
   const band = bandFor(record.smoothed);
   const interval = advertisingIntervalMs(record);
-  const { advertisement: ad } = record;
-  const seenFor = Math.max(0, Math.round((record.lastSeen - record.firstSeen) / 1000));
+  const stale = record.staleness === 'stale';
+  const kind = record.identity.kind?.kind ?? null;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Stack.Screen
-        options={{
-          title: record.identity.label,
-          headerRight: () => <FavoriteButton record={record} />,
-        }}
-      />
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* The hero carries the name; the header stays empty but for the star. */}
+        <Stack.Screen
+          options={{ title: '', headerRight: () => <FavoriteButton record={record} /> }}
+        />
 
-      <View style={styles.hero}>
-        <View style={[styles.chip, { backgroundColor: theme.chipFill(record.hue) }]}>
-          <Text style={[styles.chipText, { color: theme.chipInk(record.hue) }]}>
-            {record.identity.suffix}
-          </Text>
+        <View style={styles.hero}>
+          <View style={[styles.badge, { backgroundColor: theme.chipFill(record.hue) }]}>
+            {kind ? (
+              <KindIcon kind={kind} size={30} color={theme.chipInk(record.hue)} />
+            ) : (
+              <Text style={[styles.badgeText, { color: theme.chipInk(record.hue) }]}>
+                {record.identity.suffix}
+              </Text>
+            )}
+          </View>
+          <View style={styles.heroBody}>
+            <Text style={styles.heroTitle} numberOfLines={2}>
+              {record.identity.label}
+            </Text>
+            <Text style={styles.heroSub}>
+              {record.identity.suffix}
+              {stale ? ' · not heard recently' : ' · live'}
+            </Text>
+          </View>
+          <View style={styles.heroSignal}>
+            <Text style={[styles.heroRssi, { color: theme.bands[band] }]}>
+              {Math.round(record.smoothed)}
+            </Text>
+            <Text style={styles.heroUnit}>dBm</Text>
+          </View>
         </View>
-        <View style={styles.heroBody}>
-          <Text style={styles.heroTitle}>{record.identity.label}</Text>
-          <Text style={[styles.heroBand, { color: theme.bands[band] }]}>
-            {band} · {record.staleness === 'stale' ? 'not heard recently' : 'live'}
-          </Text>
-        </View>
-        <View style={styles.heroSignal}>
-          <Text style={[styles.heroRssi, { color: theme.bands[band] }]}>
-            {Math.round(record.smoothed)}
-          </Text>
-          <Text style={styles.heroUnit}>dBm</Text>
-        </View>
-      </View>
 
-      <Pressable
-        style={({ pressed }) => [styles.hunt, pressed && styles.huntPressed]}
-        accessibilityRole="button"
-        onPress={() => {
-          useDeviceStore.getState().setTarget(record.id);
-          router.replace('/hunt');
-        }}>
-        <Text style={styles.huntLabel}>Hunt this device</Text>
-      </Pressable>
+        <Text style={styles.summary}>{summaryOf(record, interval)}</Text>
 
-      <FavoriteNote record={record} />
+        <LiveCard id={record.id} onInfo={onInfo} />
 
-      <Section title="Signal">
-        <Row label="Smoothed" value={`${Math.round(record.smoothed)} dBm`} />
-        <Row label="Raw" value={`${record.rssi} dBm`} />
-        <Row label="Band" value={band} />
-        <Row
-          label="Tx power"
-          value={record.txPowerLevel === null ? null : `${record.txPowerLevel} dBm`}
+        <Pressable
+          style={({ pressed }) => [styles.hunt, pressed && styles.huntPressed]}
+          accessibilityRole="button"
+          onPress={() => {
+            useDeviceStore.getState().setTarget(record.id);
+            router.replace('/hunt');
+          }}>
+          <MaterialCommunityIcons name="crosshairs-gps" size={18} color={theme.bg} />
+          <Text style={styles.huntLabel}>Hunt this device</Text>
+        </Pressable>
+
+        <FavoriteNote record={record} styles={styles} />
+
+        <GlanceTiles
+          glance={{
+            dbm: Math.round(record.smoothed),
+            band,
+            trend: trendOf(record.history),
+            interval,
+            seenFor: Math.max(0, Math.round((record.lastSeen - record.firstSeen) / 1000)),
+            firstSeen: record.firstSeen,
+            packets: record.packets,
+          }}
+          onInfo={onInfo}
         />
-        <Row label="Packets" value={String(record.packets)} />
-        <Row label="Mean interval" value={interval === null ? null : `${interval} ms`} />
-        <Row label="Seen for" value={`${seenFor}s`} />
-      </Section>
 
-      <Section title="Identity">
-        <Row label="Address" value={record.id} />
-        <Row label="Name" value={ad.name} />
-        <Row label="Local name" value={ad.localName} />
-        <Row label="Vendor" value={record.identity.vendor} />
-        <FavoriteRow record={record} />
-        <Row
-          label="Kind"
-          value={
-            record.identity.kind
-              ? `${KIND_LABELS[record.identity.kind.kind]} (from ${SOURCE_LABELS[record.identity.kind.source]})`
-              : null
-          }
+        <BroadcastSection
+          advertisement={record.advertisement}
+          connectable={record.isConnectable}
+          onInfo={onInfo}
         />
-        <Row
-          label="Advertising mode"
-          value={
-            record.isConnectable === null
-              ? null
-              : record.isConnectable
-                ? 'connectable'
-                : 'broadcast-only'
-          }
-        />
-      </Section>
 
-      <Section title="Services">
-        <Row label="Service UUIDs" value={ad.serviceUUIDs?.join('\n') ?? null} />
-        <Row
-          label="Solicited"
-          value={ad.solicitedServiceUUIDs?.length ? ad.solicitedServiceUUIDs.join('\n') : null}
-        />
-        <Row
-          label="Service data"
-          value={
-            ad.serviceData
-              ? Object.entries(ad.serviceData)
-                  .map(([uuid, value]) => `${uuid}\n${base64ToHex(value)}`)
-                  .join('\n\n')
-              : null
-          }
-        />
-      </Section>
+        <IdentitySection record={record} onInfo={onInfo} />
 
-      <Section title="Raw">
-        <Hex label="Manufacturer data" value={ad.manufacturerData} />
-        {ad.rawRecords.map((raw, index) => (
-          <Hex
-            key={raw}
-            // Devices alternate payloads; showing each variant is the honest
-            // view, and stops the section strobing between them.
-            label={
-              ad.rawRecords.length > 1
-                ? `Scan record ${index + 1} of ${ad.rawRecords.length}`
-                : 'Scan record'
-            }
-            value={raw}
-          />
-        ))}
-      </Section>
+        <PacketSection rawRecords={record.advertisement.rawRecords} onInfo={onInfo} />
 
-      <Text style={styles.footnote}>
-        Passive scan only. Nothing here required connecting to the device.
-      </Text>
-    </ScrollView>
+        <Text style={styles.footnote}>
+          Passive scan only. Nothing here required connecting to the device.
+        </Text>
+      </ScrollView>
+
+      <InfoSheet term={term} onClose={() => setTerm(null)} />
+    </View>
   );
 }
 
+type Styles = ReturnType<typeof makeStyles>;
+
 const makeStyles = (t: Palette) =>
   StyleSheet.create({
-  screen: { flex: 1, backgroundColor: t.bg },
-  content: { padding: 16, gap: 16, paddingBottom: 48 },
-  empty: { flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 8 },
-  emptyTitle: { color: t.textPrimary, fontSize: 20, fontWeight: '600' },
-  emptyBody: { color: t.textSecondary, fontSize: 15, textAlign: 'center' },
+    screen: { flex: 1, backgroundColor: t.bg },
+    content: { padding: 16, gap: 16, paddingBottom: 48 },
+    empty: {
+      flex: 1,
+      backgroundColor: t.bg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      gap: 8,
+    },
+    emptyTitle: { color: t.textPrimary, fontSize: 20, fontWeight: '600' },
+    emptyBody: { color: t.textSecondary, fontSize: 15, textAlign: 'center' },
 
-  hero: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  chip: { width: 52, height: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  chipText: { fontSize: 14, fontFamily: 'monospace', fontWeight: '700' },
-  heroBody: { flex: 1, gap: 2 },
-  heroTitle: { color: t.textPrimary, fontSize: 20, fontWeight: '700' },
-  heroBand: { fontSize: 13 },
-  heroSignal: { alignItems: 'flex-end' },
-  heroRssi: { fontSize: 26, fontFamily: 'monospace', fontWeight: '700' },
-  heroUnit: { color: t.textTertiary, fontSize: 11, fontFamily: 'monospace' },
+    hero: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    badge: { width: 60, height: 60, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    badgeText: { fontSize: 14, fontFamily: 'monospace', fontWeight: '700' },
+    heroBody: { flex: 1, gap: 3 },
+    heroTitle: { color: t.textPrimary, fontSize: 22, fontWeight: '700' },
+    heroSub: { color: t.textTertiary, fontSize: 12, fontFamily: 'monospace' },
+    heroSignal: { alignItems: 'flex-end' },
+    heroRssi: { fontSize: 30, fontFamily: 'monospace', fontWeight: '700' },
+    heroUnit: { color: t.textTertiary, fontSize: 11, fontFamily: 'monospace' },
+    summary: { color: t.textSecondary, fontSize: 15, lineHeight: 21, marginTop: -4 },
 
-  section: { gap: 6 },
-  sectionTitle: { color: t.textTertiary, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
-  sectionBody: {
-    backgroundColor: t.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: t.border,
-    paddingHorizontal: 12,
-  },
-  row: { flexDirection: 'row', gap: 12, paddingVertical: 10, alignItems: 'flex-start' },
-  rowLabel: { color: t.textSecondary, fontSize: 13, width: 128 },
-  rowValue: { color: t.textPrimary, fontSize: 13, fontFamily: 'monospace', flex: 1 },
-
-  hexBlock: { paddingVertical: 10, gap: 6 },
-  hex: { color: t.textPrimary, fontSize: 12, fontFamily: 'monospace', lineHeight: 18 },
-
-  hunt: {
-    borderWidth: 1,
-    borderColor: t.signal,
-    borderRadius: 10,
-    paddingVertical: 13,
-    alignItems: 'center',
-  },
-  huntPressed: { backgroundColor: t.surfaceRaised },
-  huntLabel: { color: t.signal, fontSize: 15, fontWeight: '700' },
-  note: { color: t.textTertiary, fontSize: 13, lineHeight: 18 },
-  footnote: { color: t.textTertiary, fontSize: 12, textAlign: 'center', marginTop: 4 },
-});
+    hunt: {
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: t.signal,
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    huntPressed: { opacity: 0.85 },
+    huntLabel: { color: t.bg, fontSize: 15, fontWeight: '700' },
+    note: { color: t.textTertiary, fontSize: 13, lineHeight: 18 },
+    footnote: { color: t.textTertiary, fontSize: 12, textAlign: 'center', marginTop: 4 },
+  });

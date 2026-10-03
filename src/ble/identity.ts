@@ -117,6 +117,17 @@ function parseManufacturer(
   return { vendor, detail };
 }
 
+/** Company name for a Bluetooth SIG company id, from the short list above. */
+export function companyName(id: number): string | null {
+  return COMPANIES[id] ?? null;
+}
+
+/** Apple's message type name, for a manufacturer payload that is Apple's. */
+export function appleMessage(manufacturer: Uint8Array): string | null {
+  const company = manufacturer[0] | (manufacturer[1] << 8);
+  return company === APPLE_COMPANY_ID ? appleDetail(manufacturer) : null;
+}
+
 function typeFrom(serviceUUIDs: string[] | null): string | null {
   if (!serviceUUIDs) return null;
   for (const uuid of serviceUUIDs) {

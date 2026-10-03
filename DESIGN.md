@@ -362,6 +362,17 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
 
 **Resolved**
 
+- **The detail screen is layered for newcomers and experts.** Top to bottom:
+  hero (kind icon, name, live dBm) and a one-line plain summary ("Samsung
+  watch · near · 3 per second · accepts connections"); the live 20 s trace and
+  10 s cadence strip; Hunt; four tiles, each a number with its meaning
+  underneath; the broadcast decoded field by field with its AD type code; the
+  identity; and the raw packet last, collapsed, annotated by length / type /
+  data with a Copy button. Jargon carries an ⓘ that opens an `@expo/ui`
+  BottomSheet, so explanations are one tap away without cluttering the screen.
+  Fields a device does not send collapse into one "Not broadcast" line, and
+  padded duplicate scan records are merged. No beginner/expert switch: the
+  layering does that job.
 - **The list screen is "Nearby"**, as both tab label and title, so the tab
   predicts the screen it opens. "Scanner" named the tool rather than the
   content, and "Transmitters" was too long for a bottom tab; the word stays in
