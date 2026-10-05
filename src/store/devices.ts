@@ -412,6 +412,10 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
     });
 
     set(added ? { devices, membershipDirty: true } : { devices });
+    // A new device is listed now, not on the next sweep. Waiting up to a second
+    // left the list blank on launch while the header already counted devices.
+    // recomputeOrder still respects a finger on the list.
+    if (added) get().recomputeOrder();
   },
 
   /**
