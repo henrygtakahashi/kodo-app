@@ -21,5 +21,6 @@ Read these before proposing stack, UI or motion changes; keep them updated when 
 3. Performance: Scan callbacks fire at 5–20 Hz. Never trigger deep object clones or unmemoized re-renders on the JavaScript thread inside the scan listener.
 4. Commands:
    - Lint & Typecheck: `npx tsc --noEmit`
+   - Unit tests: `npm test` (Jest, `jest-expo` preset; pure `src/ble/` modules and `src/store/devices.ts`)
    - Prebuild test: `npx expo prebuild --clean`
    - Start Dev Client: `npx expo start --dev-client`

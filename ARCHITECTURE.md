@@ -228,6 +228,7 @@ Note: NativeTabs' `md=` icons pull in `@expo-google-fonts/material-symbols`
 
 ```bash
 npx tsc --noEmit                 # typecheck
+npm test                         # Jest unit tests
 npx expo-doctor                  # 21 checks
 npx expo prebuild --clean        # regenerate android/
 npx expo run:android             # dev build
@@ -235,6 +236,12 @@ npx expo start --dev-client      # Metro
 ```
 
 Expo Go cannot load BLE at all — native dev builds only.
+
+Unit tests (`jest-expo`) cover what runs without a radio: advertisement
+parsing, base64, smoothing and bands, distance and calibration, and the device
+store (immediate listing, stale and expiry, ordering, filters). `jest.setup.ts`
+swaps `expo-sqlite/kv-store` for an in-memory map. BLE itself, permissions and
+rendering are verified on the phone, not in Jest.
 
 A render error anywhere below the root lands on `ErrorBoundary` in
 `src/app/_layout.tsx`, which shows `CrashScreen`: the error message, Try again,
