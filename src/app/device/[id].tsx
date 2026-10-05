@@ -231,7 +231,7 @@ export default function DeviceDetailScreen() {
             // screen: `replace` stacked a second (tabs), and with it a second scan.
             router.dismissTo('/hunt');
           }}>
-          <MaterialCommunityIcons name="crosshairs-gps" size={18} color={theme.bg} />
+          <MaterialCommunityIcons name="crosshairs-gps" size={18} color={theme.signal} />
           <Text style={styles.huntLabel}>Hunt this device</Text>
         </Pressable>
 
@@ -294,17 +294,21 @@ const makeStyles = (t: Palette) =>
     heroSub: { color: t.textTertiary, fontSize: 12, fontFamily: 'monospace' },
     summary: { color: t.textSecondary, fontSize: 15, lineHeight: 21, marginTop: -4 },
 
+    // Outlined with an amber tint, not filled: a solid amber block blooms on
+    // the dark ground. The tint is about 8% alpha (0x14), 16% when pressed.
     hunt: {
       flexDirection: 'row',
       gap: 8,
-      backgroundColor: t.signal,
+      backgroundColor: `${t.signal}14`,
+      borderWidth: 1,
+      borderColor: t.signal,
       borderRadius: 12,
       paddingVertical: 14,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    huntPressed: { opacity: 0.85 },
-    huntLabel: { color: t.bg, fontSize: 15, fontWeight: '700' },
+    huntPressed: { backgroundColor: `${t.signal}29` },
+    huntLabel: { color: t.signal, fontSize: 15, fontWeight: '700' },
     note: { color: t.textTertiary, fontSize: 13, lineHeight: 18 },
     footnote: { color: t.textTertiary, fontSize: 12, textAlign: 'center', marginTop: 4 },
   });
