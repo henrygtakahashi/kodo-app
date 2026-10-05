@@ -52,6 +52,15 @@ last release still pins `expo: ^49`, six SDKs behind this project.
 `ACCESS_FINE_LOCATION` is capped at `maxSdkVersion="30"` by `neverForLocation`.
 That is intended: location is requested only as the pre-Android-12 fallback.
 
+`plugins/with-ble-manifest.js` (registered in `app.json`) caps the legacy
+`BLUETOOTH` and `BLUETOOTH_ADMIN` at `maxSdkVersion="30"`, which ble-plx adds
+uncapped, and declares `<uses-feature android.hardware.bluetooth_le
+required="true"/>` so Play hides the app from devices without BLE.
+`android.blockedPermissions` strips `SYSTEM_ALERT_WINDOW` and
+`READ/WRITE_EXTERNAL_STORAGE`, which prebuild adds by default and the app never
+uses. Do not list Bluetooth permissions in `android.permissions`: the ble-plx
+plugin already adds them.
+
 Android autolinking resolves the module to `BlePlxPackage` with a codegen
 `CMakeLists.txt`, so it is New-Architecture-ready — required, since RN 0.86 is
 new-arch only.
