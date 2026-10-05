@@ -381,6 +381,11 @@ ground `#121418`. The vector master is `assets/icon-source.svg`; the PNGs
 `backgroundColor`, not a background image. The empty states (§8a) draw the
 same motif.
 
+The splash is `expo-splash-screen` with `backgroundColor` `#121418`, and the
+root `backgroundColor` in `app.json` matches, so cold start is dark from the
+system splash through the first JS frame. Without the plugin, Android 12+
+showed the system splash on white.
+
 ## 9. Open design decisions
 
 **Resolved**

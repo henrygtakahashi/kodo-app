@@ -10,6 +10,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#121418",
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#121418",
@@ -40,7 +41,16 @@
       "expo-router",
       "expo-sqlite",
       "./plugins/with-ble-manifest",
-      "./plugins/with-release-signing"
+      "./plugins/with-release-signing",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#121418",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ]
     ]
   }
 }
