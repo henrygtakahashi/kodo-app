@@ -8,6 +8,7 @@ Read these before proposing stack, UI or motion changes; keep them updated when 
 - `ARCHITECTURE.md` — environment, BLE layer, state management, verification.
 - `DESIGN.md` — UI/animation stack (with SDK-pinned versions), Skia radar decision, motion budget.
 - `AGENTS.md` — pre-existing repo conventions (Expo Router in `src/app/`, `npx expo install`, versioned-docs rule).
+- `docs/play-console.md` — privacy policy URL, Data safety and App content answers; re-check before adding storage, networking or SDKs.
 
 ## Core Architecture & Stack
 - Framework: React Native with Expo SDK (Continuous Native Generation / CNG).
