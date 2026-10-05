@@ -236,6 +236,10 @@ npx expo start --dev-client      # Metro
 
 Expo Go cannot load BLE at all — native dev builds only.
 
+A render error anywhere below the root lands on `ErrorBoundary` in
+`src/app/_layout.tsx`, which shows `CrashScreen`: the error message, Try again,
+and Copy error details for testers.
+
 ---
 
 ## 6. Status

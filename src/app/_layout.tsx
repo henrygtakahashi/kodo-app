@@ -1,11 +1,18 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
+import type { ErrorBoundaryProps } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import { useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { BleProvider } from '@/ble/ble-provider';
+import { CrashScreen } from '@/components/crash-screen';
 import { useTheme } from '@/theme/use-theme';
+
+/** Expo Router catches any render error below the root here, so no crash is a white screen. */
+export function ErrorBoundary(props: ErrorBoundaryProps) {
+  return <CrashScreen {...props} />;
+}
 
 export default function RootLayout() {
   const palette = useTheme();

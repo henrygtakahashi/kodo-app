@@ -177,6 +177,7 @@ export function EmptyState({
   title,
   hint,
   action,
+  secondary,
 }: {
   art: EmptyArt;
   /** Short mono label above the title, e.g. "listening". */
@@ -186,6 +187,8 @@ export function EmptyState({
   title: string;
   hint: string;
   action?: { label: string; onPress: () => void };
+  /** A quieter text-only action under the main one. */
+  secondary?: { label: string; onPress: () => void };
 }) {
   const theme = useTheme();
   const themed = useMemo(() => makeStyles(theme), [theme]);
@@ -221,6 +224,13 @@ export function EmptyState({
           <Text style={themed.actionLabel}>{action.label}</Text>
         </Pressable>
       ) : null}
+      {secondary ? (
+        <Pressable onPress={secondary.onPress} hitSlop={12} accessibilityRole="button">
+          {({ pressed }) => (
+            <Text style={[themed.secondary, pressed && themed.secondaryPressed]}>{secondary.label}</Text>
+          )}
+        </Pressable>
+      ) : null}
     </Animated.View>
   );
 }
@@ -247,4 +257,6 @@ const makeStyles = (t: Palette) =>
     },
     actionPressed: { backgroundColor: t.surfaceRaised, transform: [{ scale: 0.97 }] },
     actionLabel: { color: t.signal, fontSize: 14, fontWeight: '700' },
+    secondary: { color: t.textTertiary, fontSize: 13, fontWeight: '600', paddingVertical: 4 },
+    secondaryPressed: { color: t.textSecondary },
   });
