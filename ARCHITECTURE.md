@@ -256,6 +256,16 @@ A render error anywhere below the root lands on `ErrorBoundary` in
 `src/app/_layout.tsx`, which shows `CrashScreen`: the error message, Try again,
 and Copy error details for testers.
 
+Release builds are local, not EAS. `npm run build:android` runs
+`expo prebuild --clean` and `./gradlew bundleRelease`, producing
+`android/app/build/outputs/bundle/release/app-release.aab`.
+`plugins/with-release-signing.js` signs it with the Play upload key, read from
+`BLIPFIELD_UPLOAD_STORE_FILE`, `BLIPFIELD_UPLOAD_STORE_PASSWORD`, `BLIPFIELD_UPLOAD_KEY_ALIAS`
+and `BLIPFIELD_UPLOAD_KEY_PASSWORD` in `~/.gradle/gradle.properties` (never the
+repo). Without them the release falls back to the debug key with a Gradle
+warning; Play rejects that build. Raise `android.versionCode` in `app.json`
+before every Play upload. Play App Signing holds the app signing key.
+
 ---
 
 ## 6. Status

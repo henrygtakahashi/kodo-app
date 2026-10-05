@@ -19,6 +19,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "dev.henrytakahashi.blipfield",
+      "versionCode": 1,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -39,7 +40,8 @@
       ],
       "expo-router",
       "expo-sqlite",
-      "./plugins/with-ble-manifest"
+      "./plugins/with-ble-manifest",
+      "./plugins/with-release-signing"
     ]
   }
 }
