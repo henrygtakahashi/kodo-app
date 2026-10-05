@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useBle } from '@/ble/ble-provider';
+import { EmptyState } from '@/components/empty-state';
 import { GateNotice } from '@/components/gate-notice';
 import { ScanToggle } from '@/components/scan-toggle';
 import { ScannerControls } from '@/components/scanner-controls';
@@ -23,6 +24,12 @@ export default function ScannerScreen() {
   const order = useDeviceStore((state) => state.order);
   const total = useDeviceStore((state) => Object.keys(state.devices).length);
   const scanning = useDeviceStore((state) => state.scanning);
+  const setScanning = useDeviceStore((state) => state.setScanning);
+  const setFilters = useDeviceStore((state) => state.setFilters);
+  const clearFilters = useCallback(
+    () => setFilters({ query: '', minRssi: null, namedOnly: false, favoritesOnly: false }),
+    [setFilters]
+  );
   // Derived from the filters themselves, not from order.length !== total:
   // `order` lags `devices` by up to the reorder cooldown, so a device found in
   // the last few seconds would otherwise masquerade as an active filter.
@@ -66,23 +73,33 @@ export default function ScannerScreen() {
       ) : null}
 
       {total === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyLead}>
-            {scanning ? 'Listening.' : 'Scanning paused.'}
-          </Text>
-          <Text style={styles.emptyHint}>
-            {scanning
-              ? 'Nothing is broadcasting in range yet.'
-              : 'Resume to pick the air back up.'}
-          </Text>
-        </View>
+        scanning ? (
+          <EmptyState
+            art="listening"
+            eyebrow="listening"
+            showElapsed
+            title="Nothing broadcasting yet"
+            hint="Devices appear the moment they advertise. Slow ones send a packet every few seconds."
+          />
+        ) : (
+          <EmptyState
+            art="paused"
+            eyebrow="paused"
+            title="Scanning paused"
+            hint="Resume to pick the air back up."
+            action={{ label: 'Resume scanning', onPress: () => setScanning(true) }}
+          />
+        )
       ) : order.length === 0 && filtering ? (
         // Filters persist across restarts, so an empty list on launch has to
         // say why rather than look like nothing is broadcasting.
-        <View style={styles.empty}>
-          <Text style={styles.emptyLead}>Nothing matches.</Text>
-          <Text style={styles.emptyHint}>{total} hidden by the active filters.</Text>
-        </View>
+        <EmptyState
+          art="filtered"
+          eyebrow={`${total} hidden`}
+          title="Nothing matches"
+          hint="The active filters hide every device in range."
+          action={{ label: 'Clear filters', onPress: clearFilters }}
+        />
       ) : (
         <TransmitterList />
       )}
@@ -95,9 +112,6 @@ const makeStyles = (t: Palette) =>
   subheader: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
   count: { color: t.textTertiary, fontSize: 14 },
   frozenNote: { color: t.warning, fontSize: 12 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  emptyLead: { color: t.textPrimary, fontSize: 17, fontWeight: '600' },
-  emptyHint: { color: t.textSecondary, fontSize: 14 },
   errorRow: {
     flexDirection: 'row',
     alignItems: 'center',

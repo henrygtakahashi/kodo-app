@@ -21,6 +21,7 @@ import {
 import type { Term } from '@/components/detail/glossary';
 import { InfoButton, InfoSheet } from '@/components/detail/info-sheet';
 import { trendOf, type Band, type Trend } from '@/ble/signal';
+import { EmptyState } from '@/components/empty-state';
 import { GateNotice } from '@/components/gate-notice';
 import { HuntRings } from '@/components/hunt-rings';
 import { KindIcon } from '@/components/kind-icon';
@@ -191,17 +192,16 @@ export default function HuntScreen() {
  * again, which is the duplication this screen exists to avoid.
  */
 function Empty() {
-  const theme = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <Screen>
       <ScreenTitle title="Hunt" />
-      <View style={styles.emptyBody}>
-        <Text style={styles.emptyLead}>No target.</Text>
-        <Text style={styles.emptyHint}>
-          Open a device in Nearby and choose “Hunt this device”.
-        </Text>
-      </View>
+      <EmptyState
+        art="searching"
+        eyebrow="no target"
+        title="Pick something to hunt"
+        hint="Open a device in Nearby and choose “Hunt this device”."
+        action={{ label: 'Browse Nearby', onPress: () => router.navigate('/') }}
+      />
     </Screen>
   );
 }
@@ -279,12 +279,12 @@ function Hunting({ id }: { id: string }) {
       />
 
       {reading.gone ? (
-        <View style={styles.emptyBody}>
-          <Text style={styles.emptyLead}>Lost</Text>
-          <Text style={styles.emptyHint}>
-            This device stopped advertising. Walk back toward where it was last strong.
-          </Text>
-        </View>
+        <EmptyState
+          art="lost"
+          eyebrow="signal lost"
+          title="Lost"
+          hint="This device stopped advertising. Walk back toward where it was last strong."
+        />
       ) : (
         <>
           {/* The hero: what you glance at while walking. Takes the free height. */}
@@ -407,10 +407,6 @@ const makeStyles = (t: Palette) =>
     gap: 6,
   },
   calibrate: { color: t.signal, fontSize: 13, fontWeight: '600' },
-
-  emptyBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  emptyLead: { color: t.textPrimary, fontSize: 20, fontWeight: '600' },
-  emptyHint: { color: t.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22 },
 
   hint: {
     color: t.textTertiary,
