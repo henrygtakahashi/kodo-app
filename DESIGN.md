@@ -1,4 +1,4 @@
-# ble-app — Design, UI & Motion
+# Blipfield — Design, UI & Motion
 
 Visual direction, UI stack, and motion rules for the BLE radar. Technical
 architecture — BLE config, state management, build setup — lives in
@@ -447,4 +447,3 @@ breathing is opacity only and stays.
 
 - Dense cadence strips merge into a solid block above roughly 10 Hz. Density is
   itself the signal, so this may be correct as-is.
-- App name is still a placeholder.

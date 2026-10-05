@@ -1,5 +1,5 @@
 {
-  "name": "ble-app",
+  "name": "blipfield",
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {

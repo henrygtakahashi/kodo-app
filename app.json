@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "ble-app",
-    "slug": "ble-app",
-    "scheme": "bleapp",
+    "name": "Blipfield",
+    "slug": "blipfield",
+    "scheme": "blipfield",
     "platforms": [
       "android"
     ],
@@ -10,10 +10,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.bleapp"
-    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -27,7 +23,7 @@
         "android.permission.BLUETOOTH_ADMIN",
         "android.permission.BLUETOOTH_CONNECT"
       ],
-      "package": "com.anonymous.bleapp"
+      "package": "dev.henrytakahashi.blipfield"
     },
     "web": {
       "favicon": "./assets/favicon.png"

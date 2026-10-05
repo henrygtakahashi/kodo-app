@@ -1,4 +1,4 @@
-# ble-app — Architecture
+# Blipfield — Architecture
 
 Technical architecture: environment, BLE layer, state management, verification.
 For UI, motion and visual decisions see [DESIGN.md](./DESIGN.md).
@@ -77,7 +77,7 @@ empties. AOSP's timeout is 30 min; the Samsung test phone (SDK 36) does it at
 exactly 5 min:
 
 ```
-ScanManager: Moving unfiltered scan to opportunistic scan for ScanClient(… appName=com.anonymous.bleapp)
+ScanManager: Moving unfiltered scan to opportunistic scan for ScanClient(… appName=dev.henrytakahashi.blipfield)
 ```
 
 A scan filter would exempt it, but a scanner must see everything, so
@@ -97,7 +97,7 @@ provider and scan. Each hunt leaked one scanner; at 27 Android refused new
 ones ("Cannot start scanning operation"), and every packet was delivered 27
 times, inflating packet rates. The detail screen now uses
 `router.dismissTo('/hunt')`. Check with
-`adb shell dumpsys bluetooth_manager | grep -c "app: com.anonymous.bleapp"`,
+`adb shell dumpsys bluetooth_manager | grep -c "app: dev.henrytakahashi.blipfield"`,
 which should print 1.
 
 ---
@@ -186,8 +186,8 @@ first and writes only when a preference actually changed.
 `expo-router@~57.0.24` is **installed and wired up**:
 
 - `package.json` → `"main": "expo-router/entry"`
-- `app.json` → `"scheme": "bleapp"` (deep links into `device/[id]`, dev-client
-  linking). Prebuild emits both `bleapp` and `exp+ble-app` schemes.
+- `app.json` → `"scheme": "blipfield"` (deep links into `device/[id]`, dev-client
+  linking). Prebuild emits both `blipfield` and `exp+blipfield` schemes.
 - `index.ts` and `App.tsx` are deleted; `src/app/_layout.tsx` is the entry.
 - `tsconfig.json` → `paths: { "@/*": ["./src/*"] }`
 
@@ -268,7 +268,6 @@ recoverable screen per failure. Screens under `(tabs)/` are placeholders.
 
 ### Open decisions
 
-- App name is a placeholder (`ble-app`).
 - Background scanning (`isBackgroundEnabled`) off; revisit if the radar should
   keep logging while backgrounded.
 - iOS deferred. Re-adding it means dropping `platforms` from `app.json`; note the
