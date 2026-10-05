@@ -1,11 +1,14 @@
 import { useMemo } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 
 import type { Gate } from '@/ble/use-ble-gate';
+import { EmptyState, type EmptyArt } from '@/components/empty-state';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 
 type Copy = {
+  art: EmptyArt;
+  eyebrow: string;
   title: string;
   body: string;
   action?: { label: string; run: (gate: Gate) => void };
@@ -32,38 +35,52 @@ function requestBluetoothOn() {
  * actions, and a single generic error teaches the user nothing.
  */
 const COPY: Record<Exclude<Gate['status'], 'ready'>, Copy> = {
-  checking: { title: 'Checking Bluetooth', body: 'One moment.' },
+  checking: { art: 'searching', eyebrow: 'starting', title: 'Checking Bluetooth', body: 'One moment.' },
   transient: {
+    art: 'searching',
+    eyebrow: 'restarting',
     title: 'Bluetooth is restarting',
     body: 'The adapter is resetting. This clears on its own.',
   },
   'permission-denied': {
+    art: 'off',
+    eyebrow: 'permission',
     title: 'Nearby devices permission needed',
     body: 'Scanning for Bluetooth devices requires permission. Nothing is sent anywhere — the scan is passive and stays on this device.',
     action: retryAction,
   },
   'permission-blocked': {
+    art: 'off',
+    eyebrow: 'permission',
     title: 'Permission blocked',
     body: 'Android will not ask again, so this has to be changed in system settings. Enable Nearby devices, then come back.',
     action: { label: 'Open settings', run: () => Linking.openSettings() },
   },
   'bluetooth-off': {
+    art: 'off',
+    eyebrow: 'bluetooth off',
     title: 'Bluetooth is off',
     body: 'Turn Bluetooth on to scan for nearby devices.',
     action: { label: 'Turn on Bluetooth', run: requestBluetoothOn },
   },
   'location-off': {
+    art: 'off',
+    eyebrow: 'location off',
     title: 'Location services are off',
     body: 'On this version of Android, Bluetooth scanning needs location services switched on. Your location is never used or stored — Android just requires it.',
     action: { label: 'Open settings', run: () => Linking.openSettings() },
   },
   unauthorized: {
+    art: 'off',
+    eyebrow: 'not authorised',
     title: 'Bluetooth is not authorised',
     body: 'This app is not allowed to use Bluetooth. Grant access in system settings.',
     action: { label: 'Open settings', run: () => Linking.openSettings() },
   },
   // Terminal: no action, because no action exists.
   unsupported: {
+    art: 'off',
+    eyebrow: 'unsupported',
     title: 'No Bluetooth LE',
     body: 'This device does not support Bluetooth Low Energy, so it cannot scan.',
   },
@@ -74,45 +91,23 @@ export function GateNotice({ gate }: { gate: Gate }) {
   const styles = useMemo(() => makeStyles(theme), [theme]);
   if (gate.status === 'ready') return null;
   const copy = COPY[gate.status];
-  const busy = gate.status === 'checking' || gate.status === 'transient';
 
   return (
     <View style={styles.container}>
-      {busy ? <ActivityIndicator color={theme.signal} /> : null}
-      <Text style={styles.title}>{copy.title}</Text>
-      <Text style={styles.body}>{copy.body}</Text>
-      {copy.action ? (
-        <Pressable
-          style={styles.button}
-          hitSlop={8}
-          onPress={() => copy.action?.run(gate)}
-          accessibilityRole="button">
-          <Text style={styles.buttonLabel}>{copy.action.label}</Text>
-        </Pressable>
-      ) : null}
+      <EmptyState
+        // Remount per status so each state gets its own entrance.
+        key={gate.status}
+        art={copy.art}
+        eyebrow={copy.eyebrow}
+        title={copy.title}
+        hint={copy.body}
+        action={copy.action ? { label: copy.action.label, onPress: () => copy.action?.run(gate) } : undefined}
+      />
     </View>
   );
 }
 
 const makeStyles = (t: Palette) =>
   StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: t.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 12,
-  },
-  title: { color: t.textPrimary, fontSize: 20, fontWeight: '600', textAlign: 'center' },
-  body: { color: t.textSecondary, fontSize: 16, textAlign: 'center', lineHeight: 22 },
-  button: {
-    marginTop: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: t.signal,
-  },
-  buttonLabel: { color: t.signal, fontSize: 16, fontWeight: '600' },
-});
+    container: { flex: 1, backgroundColor: t.bg },
+  });

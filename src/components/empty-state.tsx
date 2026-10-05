@@ -1,4 +1,4 @@
-import { BlurMask, Canvas, Circle, Group, Path, Skia } from '@shopify/react-native-skia';
+import { BlurMask, Canvas, Circle, Group, Line, Path, Skia, vec } from '@shopify/react-native-skia';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -24,8 +24,10 @@ import type { Palette } from '@/theme/themes';
  * - filtered: devices exist but the filters hide them. Lit dot, grey rings.
  * - searching: Hunt has no target. Hollow dot, breathing.
  * - lost: the Hunt target stopped advertising. Warning dot, breathing.
+ * - off: the radio cannot scan (Bluetooth off, no permission). Grey, slashed
+ *   through the ring gap.
  */
-export type EmptyArt = 'listening' | 'paused' | 'filtered' | 'searching' | 'lost';
+export type EmptyArt = 'listening' | 'paused' | 'filtered' | 'searching' | 'lost' | 'off';
 
 const SIZE = 180;
 const C = SIZE / 2;
@@ -45,6 +47,8 @@ function brokenRing(r: number, gapDegrees: number) {
 }
 
 const INNER_RING = brokenRing(INNER, 64);
+/** Lower left to upper right, so it leaves through both ring gaps. */
+const SLASH = { from: vec(C - 62, C + 62), to: vec(C + 62, C - 62) };
 const OUTER_RING = brokenRing(OUTER, 44);
 
 type Colours = { dot: string; inner: string; outer: string; hollow: boolean; ringOpacity: number };
@@ -61,6 +65,8 @@ function coloursFor(art: EmptyArt, t: Palette): Colours {
       return { dot: t.signal, inner: t.bands.distant, outer: t.border, hollow: true, ringOpacity: 1 };
     case 'lost':
       return { dot: t.warning, inner: t.bands.distant, outer: t.border, hollow: false, ringOpacity: 0.7 };
+    case 'off':
+      return { dot: t.textTertiary, inner: t.textTertiary, outer: t.textTertiary, hollow: true, ringOpacity: 0.45 };
   }
 }
 
@@ -138,6 +144,14 @@ function SignalArt({ art }: { art: EmptyArt }) {
           strokeWidth={3}
         />
       </Group>
+
+      {art === 'off' ? (
+        <Group>
+          {/* A ground-coloured stroke first, so the slash cuts the rings. */}
+          <Line p1={SLASH.from} p2={SLASH.to} color={theme.bg} strokeWidth={14} strokeCap="round" />
+          <Line p1={SLASH.from} p2={SLASH.to} color={theme.textSecondary} strokeWidth={4} strokeCap="round" />
+        </Group>
+      ) : null}
     </Canvas>
   );
 }
@@ -175,7 +189,8 @@ export function EmptyState({
 }) {
   const theme = useTheme();
   const themed = useMemo(() => makeStyles(theme), [theme]);
-  const eyebrowColour = art === 'lost' ? theme.warning : art === 'paused' ? theme.textTertiary : theme.signal;
+  const eyebrowColour =
+    art === 'lost' ? theme.warning : art === 'paused' || art === 'off' ? theme.textTertiary : theme.signal;
 
   return (
     <Animated.View entering={FadeInDown.duration(360)} style={themed.container}>

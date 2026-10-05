@@ -361,11 +361,14 @@ Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
 ## 8a. Empty states
 
 Empty states (`src/components/empty-state.tsx`) draw one motif, a dot and two
-rings broken at the upper right, in five states: `listening` (ripples leave the
+rings broken at the upper right, in six states: `listening` (ripples leave the
 dot), `paused` (grey, hollow dot, still), `filtered` (lit dot, grey rings),
-`searching` (Hunt without a target, hollow dot breathing) and `lost` (warning
-dot breathing). They spend the "Rare" tier of the motion budget. Under reduced
-motion the ripples stop; breathing is opacity only and stays.
+`searching` (Hunt without a target, hollow dot breathing), `lost` (warning dot
+breathing) and `off` (grey, slashed through the ring gap). The gate screens in
+`gate-notice.tsx` render through it too: `off` for Bluetooth off, permissions,
+location and unsupported, `searching` while checking or restarting. They spend
+the "Rare" tier of the motion budget. Under reduced motion the ripples stop;
+breathing is opacity only and stays.
 
 ## 9. Open design decisions
 
