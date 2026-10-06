@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Blipfield",
-    "slug": "blipfield",
-    "scheme": "blipfield",
+    "name": "Kodo",
+    "slug": "kodo",
+    "scheme": "kodo",
     "platforms": [
       "android"
     ],
@@ -18,7 +18,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "dev.henrytakahashi.blipfield",
+      "package": "dev.henrytakahashi.kodo",
       "versionCode": 1,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",

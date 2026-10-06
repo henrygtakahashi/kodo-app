@@ -6,9 +6,9 @@ networking or an SDK.
 
 ## Privacy policy
 
-URL: https://henrygtakahashi.github.io/blipfield-web/privacy
+URL: https://henrygtakahashi.github.io/kodo-web/privacy
 
-Source: the public `blipfield-web` repo (`privacy.html`), served by GitHub
+Source: the public `kodo-web` repo (`privacy.html`), served by GitHub
 Pages. Contact on the page: henryrezende.dev@gmail.com.
 
 ## What the answers rest on

@@ -1,4 +1,4 @@
-# Blipfield — Design, UI & Motion
+# Kodo — Design, UI & Motion
 
 Visual direction, UI stack, and motion rules for the BLE radar. Technical
 architecture — BLE config, state management, build setup — lives in

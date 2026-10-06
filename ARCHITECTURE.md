@@ -1,4 +1,4 @@
-# Blipfield — Architecture
+# Kodo — Architecture
 
 Technical architecture: environment, BLE layer, state management, verification.
 For UI, motion and visual decisions see [DESIGN.md](./DESIGN.md).
@@ -86,7 +86,7 @@ empties. AOSP's timeout is 30 min; the Samsung test phone (SDK 36) does it at
 exactly 5 min:
 
 ```
-ScanManager: Moving unfiltered scan to opportunistic scan for ScanClient(… appName=dev.henrytakahashi.blipfield)
+ScanManager: Moving unfiltered scan to opportunistic scan for ScanClient(… appName=dev.henrytakahashi.kodo)
 ```
 
 A scan filter would exempt it, but a scanner must see everything, so
@@ -106,7 +106,7 @@ provider and scan. Each hunt leaked one scanner; at 27 Android refused new
 ones ("Cannot start scanning operation"), and every packet was delivered 27
 times, inflating packet rates. The detail screen now uses
 `router.dismissTo('/hunt')`. Check with
-`adb shell dumpsys bluetooth_manager | grep -c "app: dev.henrytakahashi.blipfield"`,
+`adb shell dumpsys bluetooth_manager | grep -c "app: dev.henrytakahashi.kodo"`,
 which should print 1.
 
 ---
@@ -195,8 +195,8 @@ first and writes only when a preference actually changed.
 `expo-router@~57.0.24` is **installed and wired up**:
 
 - `package.json` → `"main": "expo-router/entry"`
-- `app.json` → `"scheme": "blipfield"` (deep links into `device/[id]`, dev-client
-  linking). Prebuild emits both `blipfield` and `exp+blipfield` schemes.
+- `app.json` → `"scheme": "kodo"` (deep links into `device/[id]`, dev-client
+  linking). Prebuild emits both `kodo` and `exp+kodo` schemes.
 - `index.ts` and `App.tsx` are deleted; `src/app/_layout.tsx` is the entry.
 - `tsconfig.json` → `paths: { "@/*": ["./src/*"] }`
 
@@ -260,8 +260,8 @@ Release builds are local, not EAS. `npm run build:android` runs
 `expo prebuild --clean` and `./gradlew bundleRelease`, producing
 `android/app/build/outputs/bundle/release/app-release.aab`.
 `plugins/with-release-signing.js` signs it with the Play upload key, read from
-`BLIPFIELD_UPLOAD_STORE_FILE`, `BLIPFIELD_UPLOAD_STORE_PASSWORD`, `BLIPFIELD_UPLOAD_KEY_ALIAS`
-and `BLIPFIELD_UPLOAD_KEY_PASSWORD` in `~/.gradle/gradle.properties` (never the
+`KODO_UPLOAD_STORE_FILE`, `KODO_UPLOAD_STORE_PASSWORD`, `KODO_UPLOAD_KEY_ALIAS`
+and `KODO_UPLOAD_KEY_PASSWORD` in `~/.gradle/gradle.properties` (never the
 repo). Without them the release falls back to the debug key with a Gradle
 warning; Play rejects that build. Raise `android.versionCode` in `app.json`
 before every Play upload. Play App Signing holds the app signing key.
