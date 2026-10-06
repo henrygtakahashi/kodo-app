@@ -84,9 +84,13 @@ export function useScan(enabled: boolean) {
         // 8 Hz, so counting there would quantise the advertising interval to
         // 125 ms and make it meaningless.
         const seen = pending.current.get(device.id);
+        const now = Date.now();
         const times = seen?.times ?? [];
-        times.push(Date.now());
-        pending.current.set(device.id, { device, times });
+        const samples = seen?.samples ?? [];
+        times.push(now);
+        // Each packet's RSSI is kept: the device object only holds the last.
+        if (device.rssi !== null) samples.push({ t: now, rssi: device.rssi });
+        pending.current.set(device.id, { device, times, samples });
       }
     );
 

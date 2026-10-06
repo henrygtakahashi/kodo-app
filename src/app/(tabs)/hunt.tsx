@@ -10,13 +10,18 @@ import { HISTORY_HZ, HISTORY_SECONDS, realNameOf, useDeviceStore } from '@/store
 import { findCalibration, useCalibrationsStore } from '@/store/calibrations';
 import {
   CALIBRATION_SECONDS,
-  DISTANCE_LABELS,
+  DISTANCE_EDGES,
+  FAR_LIMIT_METRES,
   calibrationOf,
   distanceBucket,
+  distanceRange,
+  estimateSignal,
+  formatApprox,
+  formatRange,
   implausibleAt1m,
   measureAt1m,
-  steadyRssi,
   type CalibrationSource,
+  type SignalEstimate,
 } from '@/ble/distance';
 import type { Term } from '@/components/detail/glossary';
 import { InfoButton, InfoSheet } from '@/components/detail/info-sheet';
@@ -32,9 +37,17 @@ import { SignalTrace } from '@/components/signal-trace';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 
-/** Compact on purpose: the range reading below is the main event, the rings support it. */
-const RINGS_MAX = 220;
-const TRACE_HEIGHT = 40;
+/**
+ * The rings take what the readout and the panel leave, never more: the
+ * reading is the main event, the rings support it. Bounded both ways, so a
+ * tall phone does not grow them into the whole screen and a short one still
+ * shows them legibly.
+ */
+const RINGS_MAX = 200;
+const RINGS_MIN = 140;
+/** Gap between the rings and the readout, matching `hero.gap`. */
+const HERO_GAP = 12;
+const TRACE_HEIGHT = 56;
 /** Screen gutter on each side, from <Screen>. */
 const GUTTER = 16;
 
@@ -48,10 +61,19 @@ const CALIBRATION_COPY: Record<CalibrationSource, string> = {
   default: 'Uncalibrated',
 };
 
+/** The trend compares the last few seconds with the few before, not the whole 20 s trace. */
+const TREND_SAMPLES = 6 * HISTORY_HZ;
+
+/**
+ * The shown estimate moves only when the signal moves by this much, or the
+ * range digits would tick on every packet. The rings still animate between.
+ */
+const DISPLAY_STEP_DB = 1;
+
 const TREND_COPY: Record<Trend, string> = {
   approaching: '▲  WARMER',
   receding: '▼  COLDER',
-  steady: '·  HOLDING',
+  steady: '↔  HOLDING',
 };
 
 function trendColour(trend: Trend, t: Palette): string {
@@ -64,8 +86,15 @@ type Reading = {
   label: string;
   kind: DeviceKind | null;
   dbm: number;
-  /** Index into DISTANCE_LABELS, 0 nearest. */
+  /** Index into the doubling buckets, 0 nearest. Drives colour and haptics. */
   bucket: number;
+  /** The approximate distance, rounded for display, without the unit. */
+  approx: string;
+  /** The likely range, already rounded for display, without the unit. */
+  range: string;
+  low: number;
+  high: number;
+  metres: number;
   calibration: CalibrationSource;
   /** The RSSI at 1 m the estimate uses, whatever its source. */
   rssiAt1m: number;
@@ -75,21 +104,14 @@ type Reading = {
   gone: boolean;
 };
 
-function read(id: string, previousBucket: number | null): Reading {
+function read(
+  id: string,
+  previousBucket: number | null,
+  shown: SignalEstimate | null
+): { reading: Reading; estimate: SignalEstimate | null } {
   const record = useDeviceStore.getState().devices[id];
   if (!record) {
-    return {
-      label: '',
-      kind: null,
-      dbm: -127,
-      bucket: DISTANCE_LABELS.length - 1,
-      calibration: 'default',
-      rssiAt1m: 0,
-      trend: 'steady',
-      best: null,
-      bestAgo: null,
-      gone: true,
-    };
+    return { reading: lost(), estimate: null };
   }
   const saved = findCalibration(useCalibrationsStore.getState().calibrations, {
     id,
@@ -100,21 +122,58 @@ function read(id: string, previousBucket: number | null): Reading {
   let bestIndex = 0;
   for (let i = 1; i < history.length; i += 1) if (history[i] > history[bestIndex]) bestIndex = i;
 
+  const fresh = estimateSignal(record.recent, Date.now()) ?? {
+    rssi: record.smoothed,
+    noiseDb: 4,
+    count: 0,
+  };
+  const estimate =
+    shown &&
+    Math.abs(fresh.rssi - shown.rssi) < DISPLAY_STEP_DB &&
+    Math.abs(fresh.noiseDb - shown.noiseDb) < DISPLAY_STEP_DB / 2
+      ? shown
+      : fresh;
+  const range = distanceRange(estimate, calibration);
+
   return {
-    label: record.identity.label,
-    kind: record.identity.kind?.kind ?? null,
-    dbm: Math.round(record.smoothed),
-    bucket: distanceBucket(
-      steadyRssi(history, HISTORY_HZ, record.smoothed),
-      calibration,
-      previousBucket
-    ),
-    calibration: calibration.source,
-    rssiAt1m: calibration.rssiAt1m,
-    trend: trendOf(history),
-    best: history.length ? Math.round(history[bestIndex]) : null,
-    bestAgo: history.length ? Math.round((history.length - 1 - bestIndex) / HISTORY_HZ) : null,
-    gone: false,
+    estimate,
+    reading: {
+      label: record.identity.label,
+      kind: record.identity.kind?.kind ?? null,
+      dbm: Math.round(estimate.rssi),
+      bucket: distanceBucket(estimate.rssi, calibration, previousBucket),
+      approx: formatApprox(range.metres),
+      range: formatRange(range),
+      low: range.low,
+      high: Math.min(range.high, FAR_LIMIT_METRES),
+      metres: Math.min(range.metres, FAR_LIMIT_METRES),
+      calibration: calibration.source,
+      rssiAt1m: calibration.rssiAt1m,
+      trend: trendOf(history.slice(-TREND_SAMPLES)),
+      best: history.length ? Math.round(history[bestIndex]) : null,
+      bestAgo: history.length ? Math.round((history.length - 1 - bestIndex) / HISTORY_HZ) : null,
+      gone: false,
+    },
+  };
+}
+
+function lost(): Reading {
+  return {
+    label: '',
+    kind: null,
+    dbm: -127,
+    bucket: DISTANCE_EDGES.length,
+    approx: '',
+    range: '',
+    low: FAR_LIMIT_METRES,
+    high: FAR_LIMIT_METRES,
+    metres: FAR_LIMIT_METRES,
+    calibration: 'default',
+    rssiAt1m: 0,
+    trend: 'steady',
+    best: null,
+    bestAgo: null,
+    gone: true,
   };
 }
 
@@ -129,7 +188,7 @@ function calibrate(id: string) {
   const name = realNameOf(record);
   const { calibrations, save, remove } = useCalibrationsStore.getState();
   const existing = findCalibration(calibrations, { id, name });
-  const measured = measureAt1m(record.history, HISTORY_HZ);
+  const measured = measureAt1m(record.recent, record.firstSeen, Date.now());
 
   if (measured === null) {
     Alert.alert(
@@ -211,24 +270,40 @@ function Hunting({ id }: { id: string }) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const { width } = useWindowDimensions();
-  const ringsSize = Math.min(RINGS_MAX, width - GUTTER * 2);
-  const [reading, setReading] = useState(() => read(id, null));
+  const [heroHeight, setHeroHeight] = useState(0);
+  const [readoutHeight, setReadoutHeight] = useState(0);
+  const fits = heroHeight > 0 ? heroHeight - readoutHeight - HERO_GAP : RINGS_MAX;
+  const ringsSize = Math.max(RINGS_MIN, Math.min(RINGS_MAX, width - GUTTER * 2, fits));
+  const [reading, setReading] = useState(() => read(id, null, null).reading);
   const lastBucket = useRef<number | null>(null);
+  const shown = useRef<SignalEstimate | null>(null);
 
   const [term, setTerm] = useState<Term | null>(null);
+  /**
+   * The walking hint is for the first moments of a hunt. Once the reading has
+   * changed bucket the user has seen it respond to walking, and the hint only
+   * competes with the tiles; the ⓘ sheet keeps the same advice.
+   */
+  const [moved, setMoved] = useState(false);
   const [traceWidth, setTraceWidth] = useState(0);
 
   useEffect(() => {
     lastBucket.current = null;
-    setReading(read(id, null));
+    shown.current = null;
+    setMoved(false);
+    setReading(read(id, null, null).reading);
 
     const update = () => {
-      const next = read(id, lastBucket.current);
+      const { reading: next, estimate } = read(id, lastBucket.current, shown.current);
+      shown.current = estimate;
       setReading((previous) =>
         previous.dbm === next.dbm &&
         previous.label === next.label &&
         previous.kind === next.kind &&
         previous.bucket === next.bucket &&
+        previous.approx === next.approx &&
+        previous.range === next.range &&
+        previous.metres === next.metres &&
         previous.calibration === next.calibration &&
         previous.rssiAt1m === next.rssiAt1m &&
         previous.trend === next.trend &&
@@ -243,6 +318,7 @@ function Hunting({ id }: { id: string }) {
       // is the moment worth a distinct, stronger cue.
       if (!next.gone && next.bucket !== lastBucket.current) {
         if (lastBucket.current !== null) {
+          setMoved(true);
           if (next.bucket === 0) {
             void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } else {
@@ -288,15 +364,37 @@ function Hunting({ id }: { id: string }) {
       ) : (
         <>
           {/* The hero: what you glance at while walking. Takes the free height. */}
-          <View style={styles.hero}>
-            <HuntRings size={ringsSize} bucket={reading.bucket} colour={bucketColour} />
-            <View style={styles.readout}>
-              <Text style={[styles.distance, { color: bucketColour }]}>
-                {DISTANCE_LABELS[reading.bucket]}
+          <View
+            style={styles.hero}
+            onLayout={(e) => setHeroHeight(Math.floor(e.nativeEvent.layout.height))}>
+            <HuntRings
+              size={ringsSize}
+              bucket={reading.bucket}
+              low={reading.low}
+              high={reading.high}
+              metres={reading.metres}
+              colour={bucketColour}
+            />
+            <View
+              style={styles.readout}
+              onLayout={(e) => setReadoutHeight(Math.ceil(e.nativeEvent.layout.height))}>
+              {/* One figure to walk by, marked as approximate twice: the ≈ and the
+                  line under it with the range it could really be. */}
+              <Text
+                style={[styles.distance, { color: bucketColour }]}
+                accessibilityLabel={`Approximately ${reading.approx} metres, likely ${reading.range} metres`}>
+                {reading.approx.startsWith('<') ? null : <Text style={styles.approx}>≈ </Text>}
+                {reading.approx}
+                <Text style={styles.unit}> m</Text>
               </Text>
-              <Text style={[styles.trend, { color: trendColour(reading.trend, theme) }]}>
-                {TREND_COPY[reading.trend]}
+              <Text style={styles.likely}>
+                approximate · likely {reading.range} m
               </Text>
+              <View style={[styles.trendPill, { borderColor: trendColour(reading.trend, theme) }]}>
+                <Text style={[styles.trend, { color: trendColour(reading.trend, theme) }]}>
+                  {TREND_COPY[reading.trend]}
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -358,60 +456,86 @@ function Hunting({ id }: { id: string }) {
 
       <InfoSheet term={term} onClose={() => setTerm(null)} />
 
-      <Text style={styles.hint}>
-        No direction — walk, and watch the range shrink.
-      </Text>
+      {moved ? null : (
+        <Text style={styles.hint}>No direction — walk, and watch the distance shrink.</Text>
+      )}
     </Screen>
   );
 }
 
 const makeStyles = (t: Palette) =>
   StyleSheet.create({
+    hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: HERO_GAP },
+    readout: { alignItems: 'center', gap: 4 },
+    distance: {
+      fontSize: 56,
+      fontWeight: '800',
+      lineHeight: 62,
+      letterSpacing: -1,
+      fontVariant: ['tabular-nums'],
+    },
+    unit: { fontSize: 24, fontWeight: '600', letterSpacing: 0 },
+    approx: { fontSize: 36, fontWeight: '600', letterSpacing: 0 },
+    likely: { color: t.textSecondary, fontSize: 13, fontVariant: ['tabular-nums'] },
+    trendPill: {
+      marginTop: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: 999,
+      borderWidth: 1,
+    },
+    trend: { fontSize: 13, fontWeight: '700', letterSpacing: 2 },
 
-  hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  readout: { alignItems: 'center', gap: 4 },
-  distance: { fontSize: 56, fontFamily: 'monospace', fontWeight: '700', lineHeight: 62 },
-  trend: { fontSize: 18, fontWeight: '700', letterSpacing: 2 },
+    // Clear of the tab bar once the walking hint below has gone.
+    panel: { gap: 8, paddingBottom: 12 },
+    // Bare, no card, the same as the detail screen's trace: it is a supporting
+    // line, not a panel of its own.
+    signal: { gap: 6, paddingHorizontal: 2, paddingBottom: 4 },
+    cardHead: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+    },
+    cardLabel: { color: t.textTertiary, fontSize: 11 },
+    cardValue: { fontSize: 15, fontWeight: '700', fontFamily: 'monospace' },
+    traceWrap: { height: TRACE_HEIGHT },
 
-  panel: { gap: 8 },
-  // Bare, no card: the trace is a supporting line, not a panel of its own.
-  signal: { gap: 6, paddingHorizontal: 2, paddingBottom: 4 },
-  cardHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  cardLabel: { color: t.textTertiary, fontSize: 11 },
-  cardValue: { fontSize: 15, fontWeight: '700', fontFamily: 'monospace' },
-  traceWrap: { height: TRACE_HEIGHT },
+    tiles: { flexDirection: 'row', gap: 8 },
+    tile: {
+      flex: 1,
+      backgroundColor: t.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: t.border,
+      padding: 12,
+      gap: 4,
+    },
+    tileHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 6,
+    },
+    tileValue: {
+      color: t.textPrimary,
+      fontSize: 17,
+      fontWeight: '700',
+      fontFamily: 'monospace',
+      flexShrink: 1,
+    },
+    tileCaption: { color: t.textSecondary, fontSize: 12 },
+    tileFoot: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      gap: 6,
+    },
+    calibrate: { color: t.signal, fontSize: 13, fontWeight: '600' },
 
-  tiles: { flexDirection: 'row', gap: 8 },
-  tile: {
-    flex: 1,
-    backgroundColor: t.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: t.border,
-    padding: 12,
-    gap: 4,
-  },
-  tileHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
-  tileValue: {
-    color: t.textPrimary,
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: 'monospace',
-    flexShrink: 1,
-  },
-  tileCaption: { color: t.textSecondary, fontSize: 12 },
-  tileFoot: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  calibrate: { color: t.signal, fontSize: 13, fontWeight: '600' },
-
-  hint: {
-    color: t.textTertiary,
-    fontSize: 11,
-    textAlign: 'center',
-    paddingVertical: 8,
-  },
-});
+    hint: {
+      color: t.textTertiary,
+      fontSize: 11,
+      textAlign: 'center',
+      paddingVertical: 8,
+    },
+  });

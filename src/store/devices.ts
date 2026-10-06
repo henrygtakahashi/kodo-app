@@ -6,8 +6,14 @@ import type { Device } from 'react-native-ble-plx';
  * draws one tick per advertisement, so 125 ms-quantised times would turn every
  * device into the same rhythm.
  */
-export type PendingDevice = { device: Device; times: number[] };
+export type PendingDevice = {
+  device: Device;
+  times: number[];
+  samples: RssiSample[];
+};
 import { create } from 'zustand';
+
+import type { RssiSample } from '@/ble/distance';
 
 import { hueFor } from '@/ble/hash';
 import { deriveIdentity, type Identity } from '@/ble/identity';
@@ -59,6 +65,15 @@ export const CADENCE_WINDOW_MS = 10_000;
  * advertisement, and the mean interval is computed from it.
  */
 export const MIN_TICK_GAP_MS = 40;
+
+/**
+ * How long raw packets are kept per device: long enough for the 5 s
+ * calibration window. A slow advertiser still keeps its last few packets.
+ */
+export const SAMPLE_RETENTION_MS = 6_000;
+const MIN_KEPT_SAMPLES = 8;
+/** A 100 Hz advertiser would keep 600; the estimate does not get better past this. */
+const MAX_KEPT_SAMPLES = 150;
 
 export type Staleness = 'live' | 'stale';
 
@@ -151,6 +166,11 @@ export type DeviceRecord = {
   staleness: Staleness;
   /** Smoothed RSSI sampled at HISTORY_HZ, oldest first. */
   history: number[];
+  /**
+   * Raw RSSI of every advertisement within SAMPLE_RETENTION_MS, oldest first.
+   * Hunt's distance reads these, not the smoothed value.
+   */
+  recent: RssiSample[];
   /** Arrival timestamps within CADENCE_WINDOW_MS, oldest first. */
   arrivals: number[];
   advertisement: Advertisement;
@@ -292,7 +312,30 @@ function nextArrivals(previous: number[], incoming: number[], cutoff: number): n
   return added === null ? kept : kept.concat(added);
 }
 
-function createRecord(device: Device, rssi: number, now: number, times: number[]): DeviceRecord {
+function nextSamples(previous: RssiSample[], incoming: RssiSample[], cutoff: number): RssiSample[] {
+  const next = incoming.length ? previous.concat(incoming) : previous;
+  let start = 0;
+  const keepFrom = Math.max(0, next.length - MIN_KEPT_SAMPLES);
+  while (start < keepFrom && next[start].t < cutoff) start += 1;
+  start = Math.max(start, next.length - MAX_KEPT_SAMPLES);
+  return start === 0 ? next : next.slice(start);
+}
+
+/** The mean of the packets in one flush, so a flush is one EMA step whatever the packet rate. */
+function meanOf(samples: RssiSample[], fallback: number): number {
+  if (samples.length === 0) return fallback;
+  let sum = 0;
+  for (const sample of samples) sum += sample.rssi;
+  return sum / samples.length;
+}
+
+function createRecord(
+  device: Device,
+  rssi: number,
+  now: number,
+  times: number[],
+  samples: RssiSample[]
+): DeviceRecord {
   const advertisement = advertisementOf(device);
   const identity = deriveIdentity(device.id, advertisement);
   return {
@@ -308,6 +351,7 @@ function createRecord(device: Device, rssi: number, now: number, times: number[]
     lastSeen: now,
     staleness: 'live',
     history: [rssi],
+    recent: nextSamples([], samples, now - SAMPLE_RETENTION_MS),
     arrivals: nextArrivals([], times, 0),
     advertisement,
     packets: times.length,
@@ -322,8 +366,7 @@ function matches(record: DeviceRecord, filters: Filters, favorite: boolean): boo
   const query = filters.query.trim().toLowerCase();
   if (!query) return true;
   return (
-    record.identity.label.toLowerCase().includes(query) ||
-    record.id.toLowerCase().includes(query)
+    record.identity.label.toLowerCase().includes(query) || record.id.toLowerCase().includes(query)
   );
 }
 
@@ -367,7 +410,9 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
 
     const cutoff = now - CADENCE_WINDOW_MS;
 
-    pending.forEach(({ device, times }, id) => {
+    const sampleCutoff = now - SAMPLE_RETENTION_MS;
+
+    pending.forEach(({ device, times, samples }, id) => {
       const previous = devices[id];
       const rssi = device.rssi ?? previous?.rssi ?? -127;
       if (previous) {
@@ -393,7 +438,10 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
         devices[id] = {
           ...previous,
           rssi,
-          smoothed: ema(previous.smoothed, rssi),
+          // Every packet counts, not only the flush's last one: at 20 Hz that
+          // was two in three packets thrown away.
+          smoothed: ema(previous.smoothed, meanOf(samples, rssi)),
+          recent: nextSamples(previous.recent, samples, sampleCutoff),
           lastSeen: now,
           staleness: 'live',
           packets: previous.packets + times.length,
@@ -406,7 +454,7 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
           advertisement,
         };
       } else {
-        devices[id] = createRecord(device, rssi, now, times);
+        devices[id] = createRecord(device, rssi, now, times, samples);
         added = true;
       }
     });
@@ -560,7 +608,13 @@ export const useDeviceStore = create<DevicesState>((set, get) => ({
   },
 
   reset: () =>
-    set({ devices: {}, order: [], lastOrderAt: 0, membershipDirty: false, targetId: null }),
+    set({
+      devices: {},
+      order: [],
+      lastOrderAt: 0,
+      membershipDirty: false,
+      targetId: null,
+    }),
 }));
 
 export function bandOf(record: Pick<DeviceRecord, 'smoothed'>): Band {
