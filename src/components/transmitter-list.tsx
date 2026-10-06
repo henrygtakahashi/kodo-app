@@ -12,8 +12,8 @@ import {
   useDeviceStore,
 } from '@/store/devices';
 import { useFavoritesStore } from '@/store/favorites';
-import { KIND_LABELS } from '@/ble/kind';
 import { bandFor } from '@/ble/signal';
+import { decimal, labelOf, useLanguage, useT, type Language } from '@/i18n';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 import { CadenceStrip } from './cadence-strip';
@@ -84,14 +84,16 @@ function worthShowing(shown: RowData, next: RowData, elapsed: number): boolean {
   return Math.abs(shown.dbm - next.dbm) >= READOUT_JUMP_DBM || elapsed >= READOUT_MS;
 }
 
-function formatInterval(ms: number | null): string {
+function formatInterval(ms: number | null, language: Language): string {
   if (ms === null) return '—';
-  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+  return ms >= 1000 ? `${decimal((ms / 1000).toFixed(1), language)}s` : `${ms}ms`;
 }
 
 const Row = memo(function Row({ id }: { id: string }) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  const t = useT();
+  const language = useLanguage();
   const [row, setRow] = useState(() => readRow(useDeviceStore.getState().devices[id]));
 
   useEffect(() => {
@@ -133,8 +135,14 @@ const Row = memo(function Row({ id }: { id: string }) {
       style={({ pressed }) => [styles.row, row.stale && styles.stale, pressed && styles.pressed]}
       onPress={() => router.push({ pathname: '/device/[id]', params: { id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${row.favorite ? 'Favorite, ' : ''}${row.label}${row.kind ? `, ${KIND_LABELS[row.kind]}` : ''}, ${row.dbm} dBm, every ${formatInterval(row.interval)}`}
-      accessibilityHint="Opens device details">
+      accessibilityLabel={t.list.rowLabel({
+        favorite: row.favorite,
+        label: labelOf(row.label, t),
+        kind: row.kind ? t.kinds[row.kind] : null,
+        dbm: row.dbm,
+        interval: formatInterval(row.interval, language),
+      })}
+      accessibilityHint={t.list.rowHint}>
       <View style={styles.labelCell}>
         <View style={styles.title}>
           {row.favorite && (
@@ -142,7 +150,7 @@ const Row = memo(function Row({ id }: { id: string }) {
           )}
           {row.kind && <KindIcon kind={row.kind} size={14} color={theme.textTertiary} />}
           <Text style={styles.label} numberOfLines={1}>
-            {row.label}
+            {labelOf(row.label, t)}
           </Text>
         </View>
         <View style={styles.subline}>
@@ -151,14 +159,14 @@ const Row = memo(function Row({ id }: { id: string }) {
               {row.chip}
             </Text>
           </View>
-          <Text style={[styles.band, { color: theme.bands[row.band] }]}>{row.band}</Text>
+          <Text style={[styles.band, { color: theme.bands[row.band] }]}>{t.bands[row.band]}</Text>
         </View>
       </View>
 
       <View style={styles.spacer} />
 
       <View style={styles.right}>
-        <Text style={styles.interval}>{formatInterval(row.interval)}</Text>
+        <Text style={styles.interval}>{formatInterval(row.interval, language)}</Text>
         <Text style={styles.dbm}>
           {row.dbm}
           <Text style={styles.unit}> dBm</Text>
@@ -173,6 +181,7 @@ const Row = memo(function Row({ id }: { id: string }) {
 export function TransmitterList() {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  const t = useT();
   const order = useDeviceStore((state) => state.order);
   const setFrozen = useDeviceStore((state) => state.setFrozen);
   const [width, setWidth] = useState(0);
@@ -196,11 +205,11 @@ export function TransmitterList() {
   return (
     <View style={styles.container} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <View style={styles.axis}>
-        <Text style={[styles.axisLabel, styles.axisDevice]}>device</Text>
+        <Text style={[styles.axisLabel, styles.axisDevice]}>{t.list.axisDevice}</Text>
         <Text style={[styles.axisLabel, styles.axisWindow]} numberOfLines={1}>
-          broadcasts · 10s
+          {t.list.axisWindow}
         </Text>
-        <Text style={[styles.axisLabel, styles.axisUnits]}>rate · signal</Text>
+        <Text style={[styles.axisLabel, styles.axisUnits]}>{t.list.axisUnits}</Text>
       </View>
 
       <ScrollView

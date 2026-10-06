@@ -50,6 +50,12 @@
           "imageWidth": 200,
           "resizeMode": "contain"
         }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportedLocales": { "android": ["en", "pt-BR"] }
+        }
       ]
     ]
   }

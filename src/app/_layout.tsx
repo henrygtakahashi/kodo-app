@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { BleProvider } from '@/ble/ble-provider';
 import { CrashScreen } from '@/components/crash-screen';
+import { useT } from '@/i18n';
 import { useTheme } from '@/theme/use-theme';
 
 /** Expo Router catches any render error below the root here, so no crash is a white screen. */
@@ -16,6 +17,7 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
 
 export default function RootLayout() {
   const palette = useTheme();
+  const t = useT();
 
   // Navigation chrome follows the chosen mode. Both palettes share the amber
   // identity, so only the ground and the ink swap.
@@ -50,7 +52,7 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: palette.bg },
             }}>
             <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="device/[id]" options={{ headerShown: true, title: 'Device' }} />
+            <Stack.Screen name="device/[id]" options={{ headerShown: true, title: t.common.device }} />
           </Stack>
         </BleProvider>
       </ThemeProvider>

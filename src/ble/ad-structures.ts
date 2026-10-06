@@ -1,6 +1,7 @@
 import { decodeBase64 } from './base64';
 import { appleMessage, companyName } from './identity';
-import { KIND_LABELS, appearanceKind } from './kind';
+import { appearanceKind } from './kind';
+import { en, type Strings } from '@/i18n/en';
 
 /**
  * A raw scan record is a run of AD structures: [length][type][data…], where
@@ -25,31 +26,13 @@ export type ParsedRecord = {
   leftover: Uint8Array | null;
 };
 
-/** Core Specification Supplement, Part A. The common ones only. */
-const AD_TYPES: Record<number, string> = {
-  0x01: 'Flags',
-  0x02: '16-bit service UUIDs (partial)',
-  0x03: '16-bit service UUIDs',
-  0x04: '32-bit service UUIDs (partial)',
-  0x05: '32-bit service UUIDs',
-  0x06: '128-bit service UUIDs (partial)',
-  0x07: '128-bit service UUIDs',
-  0x08: 'Short name',
-  0x09: 'Complete name',
-  0x0a: 'Tx power level',
-  0x14: '16-bit solicited services',
-  0x15: '128-bit solicited services',
-  0x16: 'Service data (16-bit UUID)',
-  0x19: 'Appearance',
-  0x1b: 'LE device address',
-  0x20: 'Service data (32-bit UUID)',
-  0x21: 'Service data (128-bit UUID)',
-  0x24: 'URI',
-  0xff: 'Manufacturer data',
-};
-
-export function adTypeName(type: number): string {
-  return AD_TYPES[type] ?? `Unknown type 0x${hex2(type)}`;
+/**
+ * The AD type names (Core Specification Supplement, Part A, the common ones
+ * only) and every other word here come from the string tables, so the
+ * decoded broadcast reads in the app's language. They default to English.
+ */
+export function adTypeName(type: number, t: Strings = en): string {
+  return t.ble.adTypes[type] ?? t.ble.unknownType(hex2(type));
 }
 
 export function hex2(n: number): string {
@@ -75,19 +58,19 @@ function uuids(data: Uint8Array, size: number): string {
   return out.join(', ');
 }
 
-function flags(value: number): string {
+function flags(value: number, t: Strings): string {
   const parts: string[] = [];
-  if (value & 0x01) parts.push('limited discoverable');
-  if (value & 0x02) parts.push('discoverable');
-  if (value & 0x04) parts.push('BLE only');
-  else parts.push('also Classic Bluetooth');
+  if (value & 0x01) parts.push(t.ble.flags.limited);
+  if (value & 0x02) parts.push(t.ble.flags.general);
+  if (value & 0x04) parts.push(t.ble.flags.leOnly);
+  else parts.push(t.ble.flags.classic);
   return parts.join(', ');
 }
 
-function summarise(type: number, data: Uint8Array): string {
+function summarise(type: number, data: Uint8Array, t: Strings): string {
   switch (type) {
     case 0x01:
-      return data.length ? flags(data[0]) : '';
+      return data.length ? flags(data[0], t) : '';
     case 0x02:
     case 0x03:
     case 0x14:
@@ -110,13 +93,14 @@ function summarise(type: number, data: Uint8Array): string {
       if (data.length < 2) return '';
       const value = data[0] | (data[1] << 8);
       const kind = appearanceKind(value);
-      return `${kind ? KIND_LABELS[kind] : 'Category'} (0x${value.toString(16).padStart(4, '0')})`;
+      return `${kind ? t.kinds[kind] : t.ble.category} (0x${value.toString(16).padStart(4, '0')})`;
     }
     case 0xff: {
       if (data.length < 2) return '';
       const id = data[0] | (data[1] << 8);
-      const company = companyName(id) ?? 'Unlisted company';
-      const message = appleMessage(data);
+      const company = companyName(id) ?? t.ble.unlistedCompany;
+      const apple = appleMessage(data);
+      const message = apple && (t.generatedLabels[apple] ?? apple);
       const code = `0x${id.toString(16).padStart(4, '0')}`;
       return message ? `${company} (${code}) · ${message}` : `${company} (${code})`;
     }
@@ -125,7 +109,7 @@ function summarise(type: number, data: Uint8Array): string {
   }
 }
 
-export function parseRecord(base64: string): ParsedRecord {
+export function parseRecord(base64: string, t: Strings = en): ParsedRecord {
   const bytes = decodeBase64(base64);
   const structures: AdStructure[] = [];
   let offset = 0;
@@ -140,8 +124,8 @@ export function parseRecord(base64: string): ParsedRecord {
     const data = bytes.slice(offset + 2, offset + 1 + length);
     structures.push({
       type,
-      name: adTypeName(type),
-      summary: summarise(type, data),
+      name: adTypeName(type, t),
+      summary: summarise(type, data, t),
       bytes: bytes.slice(offset, offset + 1 + length),
     });
     offset += 1 + length;
@@ -154,11 +138,11 @@ export function parseRecord(base64: string): ParsedRecord {
  * Devices send the same payload padded and unpadded, so records are compared
  * by their structures, not their raw bytes.
  */
-export function distinctRecords(rawRecords: string[]): ParsedRecord[] {
+export function distinctRecords(rawRecords: string[], t: Strings = en): ParsedRecord[] {
   const seen = new Set<string>();
   const out: ParsedRecord[] = [];
   for (const raw of rawRecords) {
-    const parsed = parseRecord(raw);
+    const parsed = parseRecord(raw, t);
     const key = parsed.structures.map((s) => toHex(s.bytes)).join('|');
     if (seen.has(key)) continue;
     seen.add(key);

@@ -3,19 +3,21 @@ import { BottomSheet, Column, Host, Text as NativeText } from '@expo/ui';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
+import { useT } from '@/i18n';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
-import { GLOSSARY, type Term } from './glossary';
+import type { Term } from './glossary';
 
 /** The ⓘ next to a term. Opens the explanation sheet. */
 export function InfoButton({ term, onInfo }: { term: Term; onInfo: (term: Term) => void }) {
   const theme = useTheme();
+  const t = useT();
   return (
     <Pressable
       onPress={() => onInfo(term)}
       hitSlop={12}
       accessibilityRole="button"
-      accessibilityLabel={`What is ${GLOSSARY[term].title}?`}>
+      accessibilityLabel={t.glossary.whatIs(t.glossary[term].title)}>
       <MaterialCommunityIcons name="information-outline" size={15} color={theme.textTertiary} />
     </Pressable>
   );
@@ -29,7 +31,8 @@ export function InfoButton({ term, onInfo }: { term: Term; onInfo: (term: Term) 
 export function InfoSheet({ term, onClose }: { term: Term | null; onClose: () => void }) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const entry = term ? GLOSSARY[term] : null;
+  const t = useT();
+  const entry = term ? t.glossary[term] : null;
 
   return (
     <Host style={styles.host}>

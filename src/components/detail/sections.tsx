@@ -16,6 +16,7 @@ import {
   type Advertisement,
   useDeviceStore,
 } from '@/store/devices';
+import { useLanguage, useT, type Strings } from '@/i18n';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 import type { Term } from './glossary';
@@ -103,6 +104,7 @@ const CLOCK_MS = 100;
  */
 export const LiveCard = memo(function LiveCard({ id, onInfo }: { id: string; onInfo: OnInfo }) {
   const { theme, styles } = useStyles();
+  const t = useT();
   const [width, setWidth] = useState(0);
   const clock = useSharedValue(Date.now());
   const scanning = useDeviceStore((state) => state.scanning);
@@ -117,7 +119,7 @@ export const LiveCard = memo(function LiveCard({ id, onInfo }: { id: string; onI
   return (
     <View style={styles.live}>
       <View style={styles.liveHead}>
-        <Text style={styles.liveLabel}>signal and broadcasts</Text>
+        <Text style={styles.liveLabel}>{t.detail.liveLabel}</Text>
         <InfoButton term="cadence" onInfo={onInfo} />
       </View>
       <View
@@ -147,8 +149,8 @@ export const LiveCard = memo(function LiveCard({ id, onInfo }: { id: string; onI
         )}
       </View>
       <View style={styles.liveFoot}>
-        <Text style={styles.liveLabel}>{LIVE_SECONDS} s ago</Text>
-        <Text style={styles.liveLabel}>now</Text>
+        <Text style={styles.liveLabel}>{t.detail.secondsAgo(LIVE_SECONDS)}</Text>
+        <Text style={styles.liveLabel}>{t.detail.now}</Text>
       </View>
     </View>
   );
@@ -165,25 +167,6 @@ export type Glance = {
   firstSeen: number;
   packets: number;
 };
-
-const TREND_WORDS: Record<Trend, string> = {
-  approaching: 'getting stronger',
-  receding: 'getting weaker',
-  steady: 'steady',
-};
-
-function duration(seconds: number): string {
-  if (seconds < 60) return `${seconds} s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ${seconds % 60} s`;
-  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
-}
-
-export function rateWords(interval: number | null): string {
-  if (interval === null) return 'not enough packets yet';
-  if (interval < 1000) return `${Math.max(1, Math.round(1000 / interval))} per second`;
-  return `once every ${(interval / 1000).toFixed(1)} s`;
-}
 
 function Tile({
   value,
@@ -213,7 +196,9 @@ function Tile({
 /** Each number with its meaning underneath: the expert reads the top line, the newcomer the bottom. */
 export function GlanceTiles({ glance, onInfo }: { glance: Glance; onInfo: OnInfo }) {
   const { theme, styles } = useStyles();
-  const since = new Date(glance.firstSeen).toLocaleTimeString([], {
+  const t = useT();
+  const language = useLanguage();
+  const since = new Date(glance.firstSeen).toLocaleTimeString(language, {
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -221,26 +206,26 @@ export function GlanceTiles({ glance, onInfo }: { glance: Glance; onInfo: OnInfo
     <View style={styles.tiles}>
       <Tile
         value={`${glance.dbm} dBm`}
-        caption={`${glance.band} · ${TREND_WORDS[glance.trend]}`}
+        caption={`${t.bands[glance.band]} · ${t.detail.trend[glance.trend]}`}
         term="signal"
         onInfo={onInfo}
         accent={theme.bands[glance.band]}
       />
       <Tile
         value={glance.interval === null ? '—' : `${glance.interval} ms`}
-        caption={rateWords(glance.interval)}
+        caption={t.detail.rate(glance.interval)}
         term="interval"
         onInfo={onInfo}
       />
       <Tile
-        value={duration(glance.seenFor)}
-        caption={`since ${since}`}
+        value={t.detail.duration(glance.seenFor)}
+        caption={t.detail.since(since)}
         term="seen"
         onInfo={onInfo}
       />
       <Tile
-        value={glance.packets.toLocaleString()}
-        caption="broadcasts received"
+        value={glance.packets.toLocaleString(language)}
+        caption={t.detail.received}
         term="packets"
         onInfo={onInfo}
       />
@@ -251,12 +236,12 @@ export function GlanceTiles({ glance, onInfo }: { glance: Glance; onInfo: OnInfo
 // --- What it is broadcasting -----------------------------------------------------
 
 /** Fields worth naming when absent, so "nothing" is said once instead of row by row. */
-const NOTABLE: { types: number[]; label: string }[] = [
+const NOTABLE: { types: number[]; label: keyof Strings['detail']['notable'] }[] = [
   { types: [0x08, 0x09], label: 'name' },
-  { types: [0xff], label: 'manufacturer data' },
+  { types: [0xff], label: 'manufacturer' },
   { types: [0x19], label: 'category' },
   { types: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07], label: 'services' },
-  { types: [0x0a], label: 'Tx power' },
+  { types: [0x0a], label: 'txPower' },
 ];
 
 export const BroadcastSection = memo(function BroadcastSection({
@@ -269,7 +254,11 @@ export const BroadcastSection = memo(function BroadcastSection({
   onInfo: OnInfo;
 }) {
   const { styles } = useStyles();
-  const records = useMemo(() => distinctRecords(advertisement.rawRecords), [advertisement.rawRecords]);
+  const t = useT();
+  const records = useMemo(
+    () => distinctRecords(advertisement.rawRecords, t),
+    [advertisement.rawRecords, t]
+  );
 
   // One row per field type: alternating payloads repeat most fields.
   const fields = useMemo(() => {
@@ -281,10 +270,10 @@ export const BroadcastSection = memo(function BroadcastSection({
   }, [records]);
 
   const present = new Set(fields.map((f) => f.type));
-  const missing = NOTABLE.filter((n) => !n.types.some((t) => present.has(t))).map((n) => n.label);
+  const missing = NOTABLE.filter((n) => !n.types.some((t) => present.has(t))).map((n) => t.detail.notable[n.label]);
 
   return (
-    <Section title="What it is broadcasting" term="advertisement" onInfo={onInfo}>
+    <Section title={t.detail.broadcasting} term="advertisement" onInfo={onInfo}>
       {fields.map((field) => (
         <Row
           key={field.type}
@@ -295,14 +284,14 @@ export const BroadcastSection = memo(function BroadcastSection({
       ))}
       {connectable !== null && (
         <Row
-          label="Connections"
-          value={connectable ? 'Accepts connections' : 'Broadcast only'}
+          label={t.detail.connections}
+          value={connectable ? t.detail.acceptsConnectionsTitle : t.detail.broadcastOnlyTitle}
           term="connectable"
           onInfo={onInfo}
         />
       )}
       {missing.length > 0 && (
-        <Text style={styles.missing}>Not broadcast: {missing.join(', ')}</Text>
+        <Text style={styles.missing}>{t.detail.notBroadcast(missing.join(', '))}</Text>
       )}
     </Section>
   );
@@ -312,6 +301,7 @@ export const BroadcastSection = memo(function BroadcastSection({
 
 function PacketRecord({ record, index, total }: { record: ParsedRecord; index: number; total: number }) {
   const { theme, styles } = useStyles();
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const full = record.structures.map((s) => toHex(s.bytes)).join(' ');
 
@@ -326,17 +316,20 @@ function PacketRecord({ record, index, total }: { record: ParsedRecord; index: n
     <View style={styles.packet}>
       <View style={styles.packetHead}>
         <Text style={styles.rowLabel}>
-          {total > 1 ? `Variant ${index + 1} of ${total}` : 'Packet'} ·{' '}
-          {record.structures.reduce((n, s) => n + s.bytes.length, 0)} bytes
+          {t.detail.packetHead(
+            index,
+            total,
+            record.structures.reduce((n, s) => n + s.bytes.length, 0)
+          )}
         </Text>
-        <Pressable onPress={copy} hitSlop={10} accessibilityRole="button" accessibilityLabel="Copy packet hex">
+        <Pressable onPress={copy} hitSlop={10} accessibilityRole="button" accessibilityLabel={t.detail.copyHex}>
           <View style={styles.copy}>
             <MaterialCommunityIcons
               name={copied ? 'check' : 'content-copy'}
               size={14}
               color={theme.signal}
             />
-            <Text style={styles.copyLabel}>{copied ? 'Copied' : 'Copy'}</Text>
+            <Text style={styles.copyLabel}>{copied ? t.common.copied : t.common.copy}</Text>
           </View>
         </Pressable>
       </View>
@@ -353,7 +346,7 @@ function PacketRecord({ record, index, total }: { record: ParsedRecord; index: n
       ))}
 
       {record.padding > 0 && (
-        <Text style={styles.padding}>+ {record.padding} zero bytes of padding added by Android</Text>
+        <Text style={styles.padding}>{t.detail.padding(record.padding)}</Text>
       )}
     </View>
   );
@@ -368,8 +361,9 @@ export const PacketSection = memo(function PacketSection({
   onInfo: OnInfo;
 }) {
   const { theme, styles } = useStyles();
+  const t = useT();
   const [open, setOpen] = useState(false);
-  const records = useMemo(() => distinctRecords(rawRecords), [rawRecords]);
+  const records = useMemo(() => distinctRecords(rawRecords, t), [rawRecords, t]);
   if (records.length === 0) return null;
 
   return (
@@ -379,10 +373,10 @@ export const PacketSection = memo(function PacketSection({
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>Raw packet</Text>
+        <Text style={styles.sectionTitle}>{t.detail.rawPacket}</Text>
         <InfoButton term="packet" onInfo={onInfo} />
         <View style={styles.flex} />
-        <Text style={styles.toggle}>{open ? 'Hide' : 'Show bytes'}</Text>
+        <Text style={styles.toggle}>{open ? t.detail.hide : t.detail.showBytes}</Text>
         <MaterialCommunityIcons
           name={open ? 'chevron-up' : 'chevron-down'}
           size={18}
@@ -392,9 +386,9 @@ export const PacketSection = memo(function PacketSection({
       {open && (
         <View style={styles.card}>
           <View style={styles.legend}>
-            <Text style={[styles.legendItem, styles.hexLength]}>length</Text>
-            <Text style={[styles.legendItem, styles.hexType]}>type</Text>
-            <Text style={styles.legendItem}>data</Text>
+            <Text style={[styles.legendItem, styles.hexLength]}>{t.detail.legendLength}</Text>
+            <Text style={[styles.legendItem, styles.hexType]}>{t.detail.legendType}</Text>
+            <Text style={styles.legendItem}>{t.detail.legendData}</Text>
           </View>
           {records.map((record, index) => (
             <PacketRecord key={index} record={record} index={index} total={records.length} />

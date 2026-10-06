@@ -4,7 +4,6 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { KIND_LABELS, SOURCE_LABELS } from '@/ble/kind';
 import { bandFor, trendOf } from '@/ble/signal';
 import type { Term } from '@/components/detail/glossary';
 import { InfoSheet } from '@/components/detail/info-sheet';
@@ -17,6 +16,7 @@ import {
   Section,
 } from '@/components/detail/sections';
 import { KindIcon } from '@/components/kind-icon';
+import { labelOf, useT, type Strings } from '@/i18n';
 import {
   advertisingIntervalMs,
   type DeviceRecord,
@@ -39,6 +39,7 @@ function useFavorite(record: DeviceRecord) {
 
 function FavoriteButton({ record }: { record: DeviceRecord }) {
   const theme = useTheme();
+  const t = useT();
   const match = useFavorite(record);
   const starred = match !== null;
 
@@ -63,7 +64,7 @@ function FavoriteButton({ record }: { record: DeviceRecord }) {
       hitSlop={12}
       accessibilityRole="button"
       accessibilityState={{ selected: starred }}
-      accessibilityLabel={starred ? 'Remove from favorites' : 'Add to favorites'}>
+      accessibilityLabel={starred ? t.detail.removeFavorite : t.detail.addFavorite}>
       <MaterialCommunityIcons
         name={starred ? 'star' : 'star-outline'}
         size={28}
@@ -73,10 +74,10 @@ function FavoriteButton({ record }: { record: DeviceRecord }) {
   );
 }
 
-function favoriteText(match: ReturnType<typeof useFavorite>): string {
-  if (!match) return 'No';
-  if (match.by === 'address') return 'Yes';
-  return `Yes, matched by name (saved as ${match.favorite.id})`;
+function favoriteText(match: ReturnType<typeof useFavorite>, t: Strings): string {
+  if (!match) return t.detail.no;
+  if (match.by === 'address') return t.detail.yes;
+  return t.detail.matchedByName(match.favorite.id);
 }
 
 /**
@@ -85,14 +86,10 @@ function favoriteText(match: ReturnType<typeof useFavorite>): string {
  * later as a favorite that silently stopped matching.
  */
 function FavoriteNote({ record, styles }: { record: DeviceRecord; styles: Styles }) {
+  const t = useT();
   const match = useFavorite(record);
   if (!match || realNameOf(record)) return null;
-  return (
-    <Text style={styles.note}>
-      This device broadcasts no name. If it changes its address, as phones and Apple devices do
-      every few minutes, it will not be recognised as a favorite.
-    </Text>
-  );
+  return <Text style={styles.note}>{t.detail.favoriteNote}</Text>;
 }
 
 function IdentitySection({
@@ -102,27 +99,28 @@ function IdentitySection({
   record: DeviceRecord;
   onInfo: (term: Term) => void;
 }) {
+  const t = useT();
   const match = useFavorite(record);
   const { identity, advertisement: ad } = record;
   const name = ad.name?.trim() || null;
   const localName = ad.localName?.trim() || null;
 
   return (
-    <Section title="Identity">
-      <Row label="Address" value={record.id} term="address" onInfo={onInfo} />
-      {name && <Row label="Name" value={name} />}
+    <Section title={t.detail.identity}>
+      <Row label={t.detail.address} value={record.id} term="address" onInfo={onInfo} />
+      {name && <Row label={t.detail.name} value={name} />}
       {/* Usually identical to the name; only worth a row when it says something else. */}
-      {localName && localName !== name && <Row label="Local name" value={localName} />}
-      <Row label="Vendor" value={identity.vendor ?? 'Not identified'} />
+      {localName && localName !== name && <Row label={t.detail.localName} value={localName} />}
+      <Row label={t.detail.vendor} value={identity.vendor ?? t.detail.notIdentified} />
       <Row
-        label="Kind"
+        label={t.detail.kind}
         value={
           identity.kind
-            ? `${KIND_LABELS[identity.kind.kind]}, from ${SOURCE_LABELS[identity.kind.source]}`
-            : 'Not identified'
+            ? t.detail.kindFrom(t.kinds[identity.kind.kind], t.kindSources[identity.kind.source])
+            : t.detail.notIdentified
         }
       />
-      <Row label="Favorite" value={favoriteText(match)} />
+      <Row label={t.detail.favorite} value={favoriteText(match, t)} />
     </Section>
   );
 }
@@ -135,17 +133,21 @@ function IdentitySection({
  * The "what" part is dropped when it would only repeat the title: a device
  * labelled by its vendor ("Apple") or not identified at all ("Unknown device").
  */
-function summaryOf(record: DeviceRecord): string {
-  const kind = record.identity.kind ? KIND_LABELS[record.identity.kind.kind].toLowerCase() : null;
+function summaryOf(record: DeviceRecord, t: Strings): string {
+  const kind = record.identity.kind ? t.kinds[record.identity.kind.kind] : null;
   const vendor = record.identity.vendor;
-  const what =
-    vendor && kind ? `${vendor} ${kind}` : vendor ?? (kind ? kind[0].toUpperCase() + kind.slice(1) : null);
+  const what = vendor && kind ? t.detail.vendorKind(vendor, kind) : vendor ?? kind;
 
-  const repeatsTitle = !what || what.toLowerCase() === record.identity.label.toLowerCase();
+  const repeatsTitle =
+    !what || what.toLowerCase() === labelOf(record.identity.label, t).toLowerCase();
 
   const parts = [
     repeatsTitle ? null : what,
-    record.isConnectable === null ? null : record.isConnectable ? 'accepts connections' : 'broadcast only',
+    record.isConnectable === null
+      ? null
+      : record.isConnectable
+        ? t.detail.acceptsConnections
+        : t.detail.broadcastOnly,
   ];
   const line = parts.filter(Boolean).join(' · ');
   return line && line[0].toUpperCase() + line.slice(1);
@@ -164,6 +166,7 @@ function summaryOf(record: DeviceRecord): string {
 export default function DeviceDetailScreen() {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const record = useDeviceStore((state) => state.devices[id]);
   const [term, setTerm] = useState<Term | null>(null);
@@ -172,11 +175,9 @@ export default function DeviceDetailScreen() {
   if (!record) {
     return (
       <View style={styles.empty}>
-        <Stack.Screen options={{ title: 'Device' }} />
-        <Text style={styles.emptyTitle}>Out of range</Text>
-        <Text style={styles.emptyBody}>
-          This device stopped advertising and was dropped from the scan.
-        </Text>
+        <Stack.Screen options={{ title: t.common.device }} />
+        <Text style={styles.emptyTitle}>{t.detail.outOfRange}</Text>
+        <Text style={styles.emptyBody}>{t.detail.dropped}</Text>
       </View>
     );
   }
@@ -204,11 +205,11 @@ export default function DeviceDetailScreen() {
           </View>
           <View style={styles.heroBody}>
             <Text style={styles.heroTitle} numberOfLines={2}>
-              {record.identity.label}
+              {labelOf(record.identity.label, t)}
             </Text>
             <Text style={styles.heroSub}>
               {record.identity.suffix}
-              {stale ? ' · not heard recently' : ' · live'}
+              {` · ${stale ? t.detail.notHeard : t.detail.live}`}
             </Text>
           </View>
           {/* The live dBm is in the Signal tile below; the hero holds what is stable. */}
@@ -216,7 +217,7 @@ export default function DeviceDetailScreen() {
         </View>
 
         {(() => {
-          const summary = summaryOf(record);
+          const summary = summaryOf(record, t);
           return summary ? <Text style={styles.summary}>{summary}</Text> : null;
         })()}
 
@@ -232,7 +233,7 @@ export default function DeviceDetailScreen() {
             router.dismissTo('/hunt');
           }}>
           <MaterialCommunityIcons name="crosshairs-gps" size={18} color={theme.signal} />
-          <Text style={styles.huntLabel}>Hunt this device</Text>
+          <Text style={styles.huntLabel}>{t.detail.huntThis}</Text>
         </Pressable>
 
         <FavoriteNote record={record} styles={styles} />
@@ -260,9 +261,7 @@ export default function DeviceDetailScreen() {
 
         <PacketSection rawRecords={record.advertisement.rawRecords} onInfo={onInfo} />
 
-        <Text style={styles.footnote}>
-          Passive scan only. Nothing here required connecting to the device.
-        </Text>
+        <Text style={styles.footnote}>{t.detail.footnote}</Text>
       </ScrollView>
 
       <InfoSheet term={term} onClose={() => setTerm(null)} />

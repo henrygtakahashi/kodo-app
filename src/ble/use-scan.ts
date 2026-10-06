@@ -3,7 +3,7 @@ import { ScanMode } from 'react-native-ble-plx';
 
 import { useDeviceStore, type PendingDevice } from '@/store/devices';
 import { getBleManager } from './manager';
-import { friendlyScanError } from './scan-errors';
+import { friendlyScanError, type ScanErrorKey } from './scan-errors';
 
 /** 8 Hz. Drains arrivals. */
 const FLUSH_MS = 125;
@@ -39,7 +39,7 @@ const RESCAN_MS = 3 * 60_000;
  * nothing at that rate may reach React.
  */
 export function useScan(enabled: boolean) {
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ScanErrorKey | null>(null);
   const pending = useRef(new Map<string, PendingDevice>());
   // ScanSettings are fixed when the scan starts, so changing this has to tear
   // the scan down and start a new one — hence a dependency, not a read.

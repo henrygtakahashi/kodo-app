@@ -35,29 +35,6 @@ export type KindInput = {
   rawRecords: string[];
 };
 
-export const KIND_LABELS: Record<DeviceKind, string> = {
-  phone: 'Phone',
-  tablet: 'Tablet',
-  computer: 'Computer',
-  tv: 'TV / display',
-  watch: 'Watch',
-  earbuds: 'Earbuds / headphones',
-  speaker: 'Speaker',
-  console: 'Game console',
-  input: 'Input device',
-  tag: 'Tracker tag',
-  beacon: 'Beacon',
-  health: 'Health / fitness sensor',
-};
-
-export const SOURCE_LABELS: Record<KindSource, string> = {
-  appearance: 'Appearance',
-  microsoft: 'Microsoft beacon',
-  apple: 'Apple message type',
-  service: 'service UUID',
-  name: 'name',
-};
-
 // --- 1. GAP Appearance -------------------------------------------------------
 
 const AD_TYPE_APPEARANCE = 0x19;

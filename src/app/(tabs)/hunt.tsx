@@ -26,6 +26,7 @@ import {
 import type { Term } from '@/components/detail/glossary';
 import { InfoButton, InfoSheet } from '@/components/detail/info-sheet';
 import { trendOf, type Band, type Trend } from '@/ble/signal';
+import { decimal, getT, labelOf, useLanguage, useT } from '@/i18n';
 import { EmptyState } from '@/components/empty-state';
 import { GateNotice } from '@/components/gate-notice';
 import { HuntRings } from '@/components/hunt-rings';
@@ -54,13 +55,6 @@ const GUTTER = 16;
 /** Colour per distance bucket, nearest first, from the existing band ramp. */
 const BUCKET_BAND: Band[] = ['immediate', 'immediate', 'near', 'far', 'distant'];
 
-const CALIBRATION_COPY: Record<CalibrationSource, string> = {
-  user: 'Calibrated',
-  ibeacon: 'Beacon',
-  'tx-power': 'Tx power',
-  default: 'Uncalibrated',
-};
-
 /** The trend compares the last few seconds with the few before, not the whole 20 s trace. */
 const TREND_SAMPLES = 6 * HISTORY_HZ;
 
@@ -69,12 +63,6 @@ const TREND_SAMPLES = 6 * HISTORY_HZ;
  * range digits would tick on every packet. The rings still animate between.
  */
 const DISPLAY_STEP_DB = 1;
-
-const TREND_COPY: Record<Trend, string> = {
-  approaching: '▲  WARMER',
-  receding: '▼  COLDER',
-  steady: '↔  HOLDING',
-};
 
 function trendColour(trend: Trend, t: Palette): string {
   if (trend === 'approaching') return t.bands.immediate;
@@ -190,18 +178,18 @@ function calibrate(id: string) {
   const existing = findCalibration(calibrations, { id, name });
   const measured = measureAt1m(record.recent, record.firstSeen, Date.now());
 
+  const t = getT();
+  const copy = t.hunt.calibrateAlert;
+
   if (measured === null) {
-    Alert.alert(
-      'Not enough signal yet',
-      `Keep the phone 1 m from the device for ${CALIBRATION_SECONDS} seconds, then try again.`
-    );
+    Alert.alert(copy.notEnoughTitle, copy.notEnoughBody(CALIBRATION_SECONDS));
     return;
   }
 
   const forget = existing
     ? [
         {
-          text: 'Remove calibration',
+          text: copy.remove,
           style: 'destructive' as const,
           onPress: () => remove(existing.id),
         },
@@ -210,22 +198,20 @@ function calibrate(id: string) {
   const plausibility = implausibleAt1m(measured);
   const odd =
     plausibility === 'too-strong'
-      ? '\n\nThat is stronger than most devices read at 1 m. If the phone was closer, every distance will read too far.'
+      ? copy.tooStrong
       : plausibility === 'too-weak'
-        ? '\n\nThat is weaker than most devices read at 1 m. If something was in the way, every distance will read too close.'
+        ? copy.tooWeak
         : '';
-  const rotating = name
-    ? ''
-    : '\n\nThis device broadcasts no name. If it changes its address, the calibration is lost.';
+  const rotating = name ? '' : copy.rotating;
 
   Alert.alert(
-    'Calibrate at 1 m',
-    `Is the phone 1 m from ${record.identity.label}, and has it been for the last ${CALIBRATION_SECONDS} seconds?\n\nThe signal there was ${measured} dBm. It becomes this device's strength at 1 m.${odd}${rotating}`,
+    copy.title,
+    copy.body(labelOf(record.identity.label, t), CALIBRATION_SECONDS, measured) + odd + rotating,
     [
       ...forget,
-      { text: 'Cancel', style: 'cancel' },
+      { text: t.common.cancel, style: 'cancel' },
       {
-        text: 'Save',
+        text: t.common.save,
         onPress: () => {
           save({ id, name, rssiAt1m: measured });
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -251,15 +237,16 @@ export default function HuntScreen() {
  * again, which is the duplication this screen exists to avoid.
  */
 function Empty() {
+  const t = useT();
   return (
     <Screen>
-      <ScreenTitle title="Hunt" />
+      <ScreenTitle title={t.hunt.title} />
       <EmptyState
         art="searching"
-        eyebrow="no target"
-        title="Pick something to hunt"
-        hint="Open a device in Nearby and choose “Hunt this device”."
-        action={{ label: 'Browse Nearby', onPress: () => router.navigate('/') }}
+        eyebrow={t.hunt.empty.eyebrow}
+        title={t.hunt.empty.title}
+        hint={t.hunt.empty.hint}
+        action={{ label: t.hunt.empty.action, onPress: () => router.navigate('/') }}
       />
     </Screen>
   );
@@ -268,6 +255,8 @@ function Empty() {
 /** Switching target goes through Nearby, the same way a target is chosen. */
 function Hunting({ id }: { id: string }) {
   const theme = useTheme();
+  const t = useT();
+  const language = useLanguage();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const { width } = useWindowDimensions();
   const [heroHeight, setHeroHeight] = useState(0);
@@ -339,11 +328,13 @@ function Hunting({ id }: { id: string }) {
   }, [id]);
 
   const bucketColour = theme.bands[BUCKET_BAND[reading.bucket]];
+  const approx = decimal(reading.approx, language);
+  const range = decimal(reading.range, language);
 
   return (
     <Screen>
       <ScreenTitle
-        title={reading.label || 'Device'}
+        title={reading.label ? labelOf(reading.label, t) : t.common.device}
         // Same glyphs as Nearby and the detail screen, generic when the kind is unknown.
         leading={
           reading.kind ? (
@@ -357,9 +348,9 @@ function Hunting({ id }: { id: string }) {
       {reading.gone ? (
         <EmptyState
           art="lost"
-          eyebrow="signal lost"
-          title="Lost"
-          hint="This device stopped advertising. Walk back toward where it was last strong."
+          eyebrow={t.hunt.lost.eyebrow}
+          title={t.hunt.lost.title}
+          hint={t.hunt.lost.hint}
         />
       ) : (
         <>
@@ -382,17 +373,17 @@ function Hunting({ id }: { id: string }) {
                   line under it with the range it could really be. */}
               <Text
                 style={[styles.distance, { color: bucketColour }]}
-                accessibilityLabel={`Approximately ${reading.approx} metres, likely ${reading.range} metres`}>
+                accessibilityLabel={t.hunt.a11yDistance(approx, range)}>
                 {reading.approx.startsWith('<') ? null : <Text style={styles.approx}>≈ </Text>}
-                {reading.approx}
+                {approx}
                 <Text style={styles.unit}> m</Text>
               </Text>
               <Text style={styles.likely}>
-                approximate · likely {reading.range} m
+                {t.hunt.likely(range)}
               </Text>
               <View style={[styles.trendPill, { borderColor: trendColour(reading.trend, theme) }]}>
                 <Text style={[styles.trend, { color: trendColour(reading.trend, theme) }]}>
-                  {TREND_COPY[reading.trend]}
+                  {t.hunt.trend[reading.trend]}
                 </Text>
               </View>
             </View>
@@ -402,7 +393,7 @@ function Hunting({ id }: { id: string }) {
           <View style={styles.panel}>
             <View style={styles.signal}>
               <View style={styles.cardHead}>
-                <Text style={styles.cardLabel}>signal · last {HISTORY_SECONDS} s</Text>
+                <Text style={styles.cardLabel}>{t.hunt.signalLabel(HISTORY_SECONDS)}</Text>
                 <Text style={[styles.cardValue, { color: bucketColour }]}>{reading.dbm} dBm</Text>
               </View>
               <View
@@ -422,28 +413,28 @@ function Hunting({ id }: { id: string }) {
                   {reading.best === null ? '—' : `${reading.best} dBm`}
                 </Text>
                 <Text style={styles.tileCaption}>
-                  {reading.bestAgo === null ? 'strongest' : `strongest · ${reading.bestAgo} s ago`}
+                  {reading.bestAgo === null ? t.hunt.strongest : t.hunt.strongestAgo(reading.bestAgo)}
                 </Text>
               </View>
 
               <View style={styles.tile}>
                 <View style={styles.tileHead}>
                   <Text style={styles.tileValue} numberOfLines={1}>
-                    {CALIBRATION_COPY[reading.calibration]}
+                    {t.hunt.calibration[reading.calibration]}
                   </Text>
                   <InfoButton term="distance" onInfo={setTerm} />
                 </View>
                 <View style={styles.tileFoot}>
                   <Pressable onPress={() => calibrate(id)} hitSlop={12} accessibilityRole="button">
                     <Text style={styles.calibrate}>
-                      {reading.calibration === 'user' ? 'Recalibrate' : 'Calibrate at 1 m'}
+                      {reading.calibration === 'user' ? t.hunt.recalibrate : t.hunt.calibrate}
                     </Text>
                   </Pressable>
                   {/* Only a figure the user measured; an assumed one would read as measured. */}
                   {reading.calibration === 'user' ? (
                     <Text
                       style={styles.tileCaption}
-                      accessibilityLabel={`${reading.rssiAt1m} dBm at 1 metre`}>
+                      accessibilityLabel={t.hunt.a11yAt1m(reading.rssiAt1m)}>
                       {reading.rssiAt1m} dBm
                     </Text>
                   ) : null}
@@ -457,7 +448,7 @@ function Hunting({ id }: { id: string }) {
       <InfoSheet term={term} onClose={() => setTerm(null)} />
 
       {moved ? null : (
-        <Text style={styles.hint}>No direction — walk, and watch the distance shrink.</Text>
+        <Text style={styles.hint}>{t.hunt.hint}</Text>
       )}
     </Screen>
   );

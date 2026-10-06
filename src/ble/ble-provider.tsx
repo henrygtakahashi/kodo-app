@@ -1,10 +1,11 @@
 import { createContext, useContext, type ReactNode } from 'react';
+import type { ScanErrorKey } from './scan-errors';
 
 import { useDeviceStore } from '@/store/devices';
 import { useBleGate, type Gate } from './use-ble-gate';
 import { useScan } from './use-scan';
 
-type BleContextValue = { gate: Gate; scanError: string | null; retryScan: () => void };
+type BleContextValue = { gate: Gate; scanError: ScanErrorKey | null; retryScan: () => void };
 
 const BleContext = createContext<BleContextValue | null>(null);
 

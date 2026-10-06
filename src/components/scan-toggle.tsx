@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '@/i18n';
 import { useDeviceStore } from '@/store/devices';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
@@ -13,6 +14,7 @@ export function ScanToggle() {
   const scanning = useDeviceStore((state) => state.scanning);
   const setScanning = useDeviceStore((state) => state.setScanning);
   const theme = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   return (
@@ -21,11 +23,11 @@ export function ScanToggle() {
       hitSlop={10}
       accessibilityRole="switch"
       accessibilityState={{ checked: scanning }}
-      accessibilityLabel={scanning ? 'Pause scanning' : 'Resume scanning'}
+      accessibilityLabel={scanning ? t.scanToggle.pause : t.scanToggle.resume}
       style={[styles.pill, scanning && styles.pillActive]}>
       <View style={[styles.dot, scanning ? styles.dotLive : styles.dotPaused]} />
       <Text style={[styles.label, scanning && styles.labelActive]}>
-        {scanning ? 'Scanning' : 'Paused'}
+        {scanning ? t.scanToggle.scanning : t.scanToggle.paused}
       </Text>
     </Pressable>
   );
