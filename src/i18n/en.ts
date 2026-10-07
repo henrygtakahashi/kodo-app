@@ -366,20 +366,22 @@ export const en = {
     recalibrate: 'Recalibrate',
     a11yAt1m: (dbm: number) => `${dbm} dBm at 1 metre`,
     hint: 'No direction — walk, and watch the distance shrink.',
-    calibrateAlert: {
+    calibrateSheet: {
+      title: 'Calibrate at 1 m',
+      question: (label: string) => `Is the phone 1 m from ${label}, held still?`,
+      measured: (seconds: number) => `measured over the last ${seconds} s`,
+      becomes: 'Saved as this device’s reference at 1 m. Every distance is measured from it.',
+      tooStrong:
+        'Stronger than most devices read at 1 m. If the phone was closer, every distance will read too far.',
+      tooWeak:
+        'Weaker than most devices read at 1 m. If something was in the way, every distance will read too close.',
+      rotating: 'This device broadcasts no name. If it changes its address, the calibration is lost.',
+      current: (dbm: number) => `Current reference: ${dbm} dBm`,
+      remove: 'Remove calibration',
       notEnoughTitle: 'Not enough signal yet',
       notEnoughBody: (seconds: number) =>
-        `Keep the phone 1 m from the device for ${seconds} seconds, then try again.`,
-      remove: 'Remove calibration',
-      tooStrong:
-        '\n\nThat is stronger than most devices read at 1 m. If the phone was closer, every distance will read too far.',
-      tooWeak:
-        '\n\nThat is weaker than most devices read at 1 m. If something was in the way, every distance will read too close.',
-      rotating:
-        '\n\nThis device broadcasts no name. If it changes its address, the calibration is lost.',
-      title: 'Calibrate at 1 m',
-      body: (label: string, seconds: number, dbm: number) =>
-        `Is the phone 1 m from ${label}, and has it been for the last ${seconds} seconds?\n\nThe signal there was ${dbm} dBm. It becomes this device's strength at 1 m.`,
+        `Hold the phone 1 m from the device for ${seconds} seconds, then try again.`,
+      ok: 'OK',
     },
   },
 

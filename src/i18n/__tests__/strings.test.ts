@@ -13,7 +13,7 @@ describe('pt-BR strings', () => {
     const record = Buffer.from([0x02, 0x01, 0x06]).toString('base64');
     expect(parseRecord(record, ptBR).structures[0]).toMatchObject({
       name: 'Flags',
-      summary: 'detectável, só BLE',
+      summary: 'detectável, apenas BLE',
     });
   });
 

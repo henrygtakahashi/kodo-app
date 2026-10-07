@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@shopify/react-native-skia';
-import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { useBle } from '@/ble/ble-provider';
 import { HISTORY_HZ, HISTORY_SECONDS, realNameOf, useDeviceStore } from '@/store/devices';
@@ -29,6 +29,7 @@ import { trendOf, type Band, type Trend } from '@/ble/signal';
 import { decimal, getT, labelOf, useLanguage, useT } from '@/i18n';
 import { EmptyState } from '@/components/empty-state';
 import { GateNotice } from '@/components/gate-notice';
+import { CalibrateSheet, type CalibrationDraft } from '@/components/calibrate-sheet';
 import { HuntRings } from '@/components/hunt-rings';
 import { KindIcon } from '@/components/kind-icon';
 import type { DeviceKind } from '@/ble/kind';
@@ -166,59 +167,47 @@ function lost(): Reading {
 }
 
 /**
- * Saves the last few seconds of signal as this device's strength at 1 m. It
- * asks first and states the figure, so a tap made from the wrong spot costs
- * nothing.
+ * What the calibration sheet confirms: the last few seconds of signal, to be
+ * saved as this device's strength at 1 m. It asks first and states the
+ * figure, so a tap made from the wrong spot costs nothing.
  */
-function calibrate(id: string) {
+function draftCalibration(id: string): CalibrationDraft | null {
+  const record = useDeviceStore.getState().devices[id];
+  if (!record) return null;
+  const name = realNameOf(record);
+  const existing = findCalibration(useCalibrationsStore.getState().calibrations, { id, name });
+  const measured = measureAt1m(record.recent, record.firstSeen, Date.now());
+  const t = getT();
+  const copy = t.hunt.calibrateSheet;
+
+  const plausibility = measured === null ? null : implausibleAt1m(measured);
+  const warnings = [
+    plausibility === 'too-strong' ? copy.tooStrong : null,
+    plausibility === 'too-weak' ? copy.tooWeak : null,
+    name ? null : copy.rotating,
+  ].filter((w): w is string => w !== null);
+
+  return {
+    label: labelOf(record.identity.label, t),
+    measured,
+    seconds: CALIBRATION_SECONDS,
+    warnings,
+    existing: existing?.rssiAt1m ?? null,
+  };
+}
+
+function saveCalibration(id: string, rssiAt1m: number) {
   const record = useDeviceStore.getState().devices[id];
   if (!record) return;
-  const name = realNameOf(record);
-  const { calibrations, save, remove } = useCalibrationsStore.getState();
-  const existing = findCalibration(calibrations, { id, name });
-  const measured = measureAt1m(record.recent, record.firstSeen, Date.now());
+  useCalibrationsStore.getState().save({ id, name: realNameOf(record), rssiAt1m });
+  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+}
 
-  const t = getT();
-  const copy = t.hunt.calibrateAlert;
-
-  if (measured === null) {
-    Alert.alert(copy.notEnoughTitle, copy.notEnoughBody(CALIBRATION_SECONDS));
-    return;
-  }
-
-  const forget = existing
-    ? [
-        {
-          text: copy.remove,
-          style: 'destructive' as const,
-          onPress: () => remove(existing.id),
-        },
-      ]
-    : [];
-  const plausibility = implausibleAt1m(measured);
-  const odd =
-    plausibility === 'too-strong'
-      ? copy.tooStrong
-      : plausibility === 'too-weak'
-        ? copy.tooWeak
-        : '';
-  const rotating = name ? '' : copy.rotating;
-
-  Alert.alert(
-    copy.title,
-    copy.body(labelOf(record.identity.label, t), CALIBRATION_SECONDS, measured) + odd + rotating,
-    [
-      ...forget,
-      { text: t.common.cancel, style: 'cancel' },
-      {
-        text: t.common.save,
-        onPress: () => {
-          save({ id, name, rssiAt1m: measured });
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        },
-      },
-    ]
-  );
+function removeCalibration(id: string) {
+  const record = useDeviceStore.getState().devices[id];
+  const { calibrations, remove } = useCalibrationsStore.getState();
+  const existing = findCalibration(calibrations, { id, name: record ? realNameOf(record) : null });
+  if (existing) remove(existing.id);
 }
 
 export default function HuntScreen() {
@@ -268,6 +257,7 @@ function Hunting({ id }: { id: string }) {
   const shown = useRef<SignalEstimate | null>(null);
 
   const [term, setTerm] = useState<Term | null>(null);
+  const [draft, setDraft] = useState<CalibrationDraft | null>(null);
   /**
    * The walking hint is for the first moments of a hunt. Once the reading has
    * changed bucket the user has seen it respond to walking, and the hint only
@@ -425,7 +415,10 @@ function Hunting({ id }: { id: string }) {
                   <InfoButton term="distance" onInfo={setTerm} />
                 </View>
                 <View style={styles.tileFoot}>
-                  <Pressable onPress={() => calibrate(id)} hitSlop={12} accessibilityRole="button">
+                  <Pressable
+                    onPress={() => setDraft(draftCalibration(id))}
+                    hitSlop={12}
+                    accessibilityRole="button">
                     <Text style={styles.calibrate}>
                       {reading.calibration === 'user' ? t.hunt.recalibrate : t.hunt.calibrate}
                     </Text>
@@ -446,6 +439,18 @@ function Hunting({ id }: { id: string }) {
       )}
 
       <InfoSheet term={term} onClose={() => setTerm(null)} />
+      <CalibrateSheet
+        draft={draft}
+        onClose={() => setDraft(null)}
+        onSave={() => {
+          if (draft?.measured != null) saveCalibration(id, draft.measured);
+          setDraft(null);
+        }}
+        onRemove={() => {
+          removeCalibration(id);
+          setDraft(null);
+        }}
+      />
 
       {moved ? null : (
         <Text style={styles.hint}>{t.hunt.hint}</Text>

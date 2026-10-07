@@ -15,10 +15,10 @@ const dec = (value: string) => value.replace('.', ',');
  * short: Portuguese runs longer, and a truncated label is worse than a terse one.
  */
 export const ptBR: Strings = {
-  tabs: { nearby: 'Por perto', hunt: 'Localizar', settings: 'Ajustes' },
+  tabs: { nearby: 'Por perto', hunt: 'Localizar', settings: 'Configurações' },
 
   common: {
-    tryAgain: 'Tentar de novo',
+    tryAgain: 'Tentar novamente',
     openSettings: 'Abrir configurações',
     retry: 'Repetir',
     cancel: 'Cancelar',
@@ -48,9 +48,9 @@ export const ptBR: Strings = {
   kindSources: {
     appearance: 'Appearance',
     microsoft: 'Microsoft Beacon',
-    apple: 'tipo de mensagem Apple',
+    apple: 'Tipo de mensagem Apple',
     service: 'Service UUID',
-    name: 'nome',
+    name: 'Nome',
   },
 
   generatedLabels: {
@@ -66,8 +66,8 @@ export const ptBR: Strings = {
     'HomeKit accessory': 'Acessório HomeKit',
     'AirPlay target': 'AirPlay (receptor)',
     'AirPlay source': 'AirPlay (emissor)',
-    'Tethering target': 'Acesso Pessoal (cliente)',
-    'Tethering source': 'Acesso Pessoal (host)',
+    'Tethering target': 'Ponto de acesso (cliente)',
+    'Tethering source': 'Ponto de acesso (host)',
     'Nearby action': 'Nearby Action',
   },
 
@@ -97,7 +97,7 @@ export const ptBR: Strings = {
     flags: {
       limited: 'detectável (limitado)',
       general: 'detectável',
-      leOnly: 'só BLE',
+      leOnly: 'apenas BLE',
       classic: 'também Bluetooth Classic',
     },
     category: 'Categoria',
@@ -105,9 +105,9 @@ export const ptBR: Strings = {
   },
 
   scanErrors: {
-    poweredOff: 'Bluetooth desligado. Ligue para continuar o scan.',
+    poweredOff: 'Bluetooth desativado. Ative para continuar o scan.',
     unauthorized: 'O app perdeu a permissão de Bluetooth. Verifique nas configurações.',
-    locationOff: 'Localização desligada. Este aparelho exige a localização para escanear.',
+    locationOff: 'Localização desativada. Este aparelho exige a localização para escanear.',
     resetting: 'Bluetooth reiniciando. O scan retoma sozinho.',
     startFailed: 'Falha ao iniciar o scan. Nova tentativa em instantes.',
     other: 'O scan parou inesperadamente. Nova tentativa em instantes.',
@@ -123,23 +123,23 @@ export const ptBR: Strings = {
     permissionDenied: {
       eyebrow: 'permissão',
       title: 'Permissão necessária',
-      body: 'Para escanear dispositivos Bluetooth, o app precisa da permissão Dispositivos por perto. O scan é passivo e nada sai deste aparelho.',
+      body: 'Para escanear dispositivos Bluetooth, o app precisa da permissão Dispositivos próximos. O scan é passivo e nada sai deste aparelho.',
     },
     permissionBlocked: {
       eyebrow: 'permissão',
       title: 'Permissão bloqueada',
-      body: 'O Android não vai perguntar de novo. Ative Dispositivos por perto nas configurações do sistema e volte.',
+      body: 'O Android não vai perguntar de novo. Ative a permissão Dispositivos próximos nas configurações do sistema e volte.',
     },
     bluetoothOff: {
-      eyebrow: 'bluetooth off',
-      title: 'Bluetooth desligado',
-      body: 'Ligue o Bluetooth para escanear dispositivos por perto.',
-      action: 'Ligar Bluetooth',
+      eyebrow: 'bluetooth desativado',
+      title: 'Bluetooth desativado',
+      body: 'Ative o Bluetooth para escanear dispositivos próximos.',
+      action: 'Ativar Bluetooth',
     },
     locationOff: {
-      eyebrow: 'localização off',
-      title: 'Localização desligada',
-      body: 'Nesta versão do Android, o scan Bluetooth exige a localização ligada. Sua localização nunca é usada nem armazenada: é uma exigência do sistema.',
+      eyebrow: 'localização desativada',
+      title: 'Localização desativada',
+      body: 'Nesta versão do Android, o scan Bluetooth exige a localização ativada. Sua localização nunca é usada nem armazenada: é uma exigência do sistema.',
     },
     unauthorized: {
       eyebrow: 'sem autorização',
@@ -175,7 +175,7 @@ export const ptBR: Strings = {
     listening: {
       eyebrow: 'escutando',
       title: 'Nenhum broadcast ainda',
-      hint: 'Os dispositivos aparecem no primeiro advertising. Os mais lentos enviam um packet a cada poucos segundos.',
+      hint: 'Os dispositivos aparecem assim que transmitem. Os mais lentos enviam um packet a cada poucos segundos.',
     },
     paused: {
       eyebrow: 'pausado',
@@ -203,9 +203,9 @@ export const ptBR: Strings = {
     minSignal: 'RSSI mínimo, dBm',
     minSignalLabel: 'RSSI mínimo',
     any: 'Todos',
-    favoritesOnly: 'Só favoritos',
-    namedOnly: 'Só com nome',
-    legacyOnly: 'Só legacy advertising',
+    favoritesOnly: 'Apenas favoritos',
+    namedOnly: 'Apenas com nome',
+    legacyOnly: 'Apenas legacy advertising',
     legacyHint: 'Bluetooth 4.x. Reinicia o scan e limpa a lista.',
     pillFavorites: 'Favoritos',
     pillNamed: 'Com nome',
@@ -224,7 +224,7 @@ export const ptBR: Strings = {
 
   detail: {
     outOfRange: 'Fora de alcance',
-    dropped: 'Este dispositivo parou de anunciar e saiu do scan.',
+    dropped: 'Este dispositivo parou de transmitir e saiu do scan.',
     live: 'ao vivo',
     notHeard: 'sem sinal recente',
     huntThis: 'Localizar dispositivo',
@@ -234,7 +234,7 @@ export const ptBR: Strings = {
     favoriteNote:
       'Este dispositivo não transmite nome. Se o MAC Address mudar, como celulares e aparelhos Apple fazem a cada poucos minutos, ele deixa de ser reconhecido como favorito.',
     acceptsConnections: 'aceita conexões',
-    broadcastOnly: 'só broadcast',
+    broadcastOnly: 'apenas broadcast',
     vendorKind: (vendor, kind) => `${kind.toLowerCase()} ${vendor}`,
     identity: 'Identificação',
     address: 'MAC Address',
@@ -268,7 +268,7 @@ export const ptBR: Strings = {
     broadcasting: 'Advertisement Data',
     connections: 'Conexões',
     acceptsConnectionsTitle: 'Aceita conexões',
-    broadcastOnlyTitle: 'Só broadcast',
+    broadcastOnlyTitle: 'Apenas broadcast',
     notBroadcast: (fields) => `Ausente no advertising: ${fields}`,
     notable: {
       name: 'nome',
@@ -301,7 +301,7 @@ export const ptBR: Strings = {
       title: 'Advertising interval',
       body:
         'Frequência com que o dispositivo se anuncia. Todo dispositivo BLE repete um broadcast curto em ritmo fixo, de 20 ms (50 vezes por segundo) a mais de 10 segundos.\n\n' +
-        'O ritmo é revelador: beacons e dispositivos em pareamento anunciam rápido; rastreadores e sensores anunciam devagar para economizar bateria.',
+        'O ritmo é revelador: beacons e dispositivos em pareamento transmitem rápido; rastreadores e sensores transmitem devagar para economizar bateria.',
     },
     seen: {
       title: 'Tempo visível',
@@ -329,7 +329,7 @@ export const ptBR: Strings = {
     },
     connectable: {
       title: 'Aceita conexões',
-      body: 'Indica se o dispositivo aceita conexões de outros aparelhos, para pareamento ou troca de dados. Dispositivos só de broadcast, como beacons e muitos rastreadores, apenas se anunciam. Este app nunca se conecta, em nenhum caso.',
+      body: 'Indica se o dispositivo aceita conexões de outros aparelhos, para pareamento ou troca de dados. Dispositivos apenas de broadcast, como beacons e muitos rastreadores, somente se anunciam. Este app nunca se conecta, em nenhum caso.',
     },
     packet: {
       title: 'Packet bruto',
@@ -377,30 +377,33 @@ export const ptBR: Strings = {
     recalibrate: 'Recalibrar',
     a11yAt1m: (dbm) => `${dbm} dBm a 1 metro`,
     hint: 'Sem direção: caminhe e observe a distância diminuir.',
-    calibrateAlert: {
+    calibrateSheet: {
+      title: 'Calibrar a 1 m',
+      question: (label) => `O celular está a 1 m de ${label}, parado?`,
+      measured: (seconds) => `medido nos últimos ${seconds} s`,
+      becomes:
+        'Salvo como referência de 1 m deste dispositivo. As distâncias estimadas serão calculadas a partir dele.',
+      tooStrong:
+        'Acima do que a maioria dos dispositivos registra a 1 m. Se o celular estava mais perto, as distâncias estimadas parecerão maiores do que o real.',
+      tooWeak:
+        'Abaixo do que a maioria dos dispositivos registra a 1 m. Se havia algo no caminho, as distâncias estimadas parecerão menores do que o real.',
+      rotating: 'Este dispositivo não transmite nome. Se o MAC Address mudar, a calibração se perde.',
+      current: (dbm) => `Referência atual: ${dbm} dBm`,
+      remove: 'Remover calibração',
       notEnoughTitle: 'Sinal insuficiente',
       notEnoughBody: (seconds) =>
         `Mantenha o celular a 1 m do dispositivo por ${seconds} segundos e tente de novo.`,
-      remove: 'Remover calibração',
-      tooStrong:
-        '\n\nValor acima do que a maioria dos dispositivos registra a 1 m. Se o celular estava mais perto, todas as distâncias vão aparecer maiores do que são.',
-      tooWeak:
-        '\n\nValor abaixo do que a maioria dos dispositivos registra a 1 m. Se havia algo no caminho, todas as distâncias vão aparecer menores do que são.',
-      rotating:
-        '\n\nEste dispositivo não transmite nome. Se o MAC Address mudar, a calibração se perde.',
-      title: 'Calibrar a 1 m',
-      body: (label, seconds, dbm) =>
-        `O celular está a 1 m de ${label} há pelo menos ${seconds} segundos?\n\nO RSSI medido foi ${dbm} dBm. Ele passa a ser a referência de 1 m deste dispositivo.`,
+      ok: 'OK',
     },
   },
 
   settings: {
-    title: 'Ajustes',
+    title: 'Configurações',
     theme: 'Tema',
     themes: {
       graphite: {
         title: 'Grafite',
-        blurb: 'Cinzas neutros, âmbar só no sinal. Mais confortável em sessões longas.',
+        blurb: 'Cinzas neutros, âmbar apenas no sinal. Mais confortável em sessões longas.',
       },
       night: {
         title: 'Noite',
