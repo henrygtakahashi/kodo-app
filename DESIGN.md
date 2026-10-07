@@ -181,7 +181,7 @@ chart.
 
 | Channel | Encodes | Real? |
 |---|---|---|
-| Lit ring band | distance bucket from smoothed RSSI, log2 scale 0.5–16 m | Estimate |
+| Lit ring band | likely distance range from raw packets, log2 scale 0.5–16 m | Estimate |
 | Trace Y | the same scale | **Yes** |
 | Trace X | time, last 20 s | **Yes** |
 | — | *no direction channel exists; rings are symmetric* | — |
@@ -421,14 +421,18 @@ showed the system splash on white.
 - **Palettes are user-selectable** in Settings — see §8. Graphite is the default.
 - **Hunt reads on range rings**, replacing the moving-coil meter (2026-10-03).
   Rings are centred on the target, one per doubling (1, 2, 4, 8 m), so equal
-  spacing matches how the error grows. The whole estimated bucket is lit
-  rather than a line at the point estimate, because a bucket is all the
-  estimate supports. A pulse runs from the target to the lit band, faster when
+  spacing matches how the error grows. The lit band spans the likely range,
+  so its width is the uncertainty, with a bold ring at its middle; it animates
+  continuously rather than jumping between fixed buckets (revised
+  2026-10-06). Ring labels sit on the horizontal axis, where the rings are a
+  full spacing apart, as bare numbers with the unit once after the last. The range reads in a proportional bold face with
+  tabular figures and a small unit, not monospace, whose wide glyphs split
+  `8+ m` apart. A pulse runs from the target to the middle ring, faster when
   nearer (650 ms at `< 1 m` to 2.3 s at `8+ m`). This is the continuous
   exception in §6. Reduced motion drops the pulse and snaps the band. There is
   no blip, so unlike the cut radar the rings show no position or bearing.
   Layout splits by posture: the top half is what you glance at while walking
-  (rings at most 220 dp, the range, the trend); a panel anchored to the bottom
+  (rings 140–200 dp, sized to the height the readout leaves so the panel never shrinks, the range, the trend); a panel anchored to the bottom
   holds what you read standing still (the signal card with live dBm, the
   strongest reading, calibration).
 - **Scanner is organised by cadence** — see §1 and §4.

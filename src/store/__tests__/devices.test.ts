@@ -21,7 +21,7 @@ function device(id: string, rssi: number, name: string | null = null): Device {
 
 function packets(...devices: Device[]): Map<string, PendingDevice> {
   const now = Date.now();
-  return new Map(devices.map((d) => [d.id, { device: d, times: [now] }]));
+  return new Map(devices.map((d) => [d.id, { device: d, times: [now], samples: [{ t: now, rssi: d.rssi ?? -127 }] }]));
 }
 
 const store = () => useDeviceStore.getState();

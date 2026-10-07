@@ -67,8 +67,9 @@ export const GLOSSARY: Record<Term, { title: string; body: string }> = {
   distance: {
     title: 'Distance estimate',
     body:
-      'A guess from signal strength, so it shows a range, not an exact figure. Walls and bodies can make a device seem further away.\n\n' +
-      '"Uncalibrated" means the device does not say how strong it is, so the range can be off by 2–3 times. To fix it, hold the phone still, 1 m from the device, for 5 seconds and tap "Calibrate at 1 m".\n\n' +
-      'Without calibration, still follow the trend: a shrinking range and WARMER mean you are getting closer.',
+      'An approximate figure from signal strength, never an exact one, with the range it is likely in underneath. Walls and bodies can make a device seem further away.\n\n' +
+      'Signal strength has no direction. Walk, and watch whether the distance shrinks.\n\n' +
+      '"Uncalibrated" means the device does not say how strong it is, so the figure can be off by 2–3 times. To fix it, hold the phone still, 1 m from the device, for 5 seconds and tap "Calibrate at 1 m".\n\n' +
+      'Without calibration, still follow the trend: a shrinking distance and WARMER mean you are getting closer.',
   },
 };

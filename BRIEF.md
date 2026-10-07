@@ -69,10 +69,20 @@ radius must agree.
 **Distance in metres: Hunt only, and only as a range.** `txPowerLevel` is usually
 `null`, so a path-loss model is mostly uncalibrated guesswork, and a single metre
 figure ("3.2 m") would claim precision the signal does not have. Hunt
-therefore shows a doubling bucket (`< 1 m`, `1–2 m`, `2–4 m`, `4–8 m`, `8+ m`),
-labelled as an estimate and as uncalibrated when it is. Calibration comes from
+therefore shows one approximate figure marked with `≈` (`≈ 1.2 m`, `< 0.5 m`,
+`16+ m`), with the line under it saying "approximate", the likely range sized
+from the actual error (`likely 0.8–2 m`). The calibration tile says
+"Uncalibrated" when it is; the subtitle does not repeat it.
+Revised 2026-10-06 from fixed doubling buckets: the user wanted a figure to
+walk by, as long as it never claims to be exact. On device a Galaxy Watch8
+worn beside the phone swung from −56 to −76 dBm within a minute, so the
+figure can never be exact without calibration. Calibration comes from
 the user's own 1 m measurement, else an iBeacon's measured 1 m power, else the
-advertised Tx power, else a −59 dBm default (`src/ble/distance.ts`). **Scanner still shows dBm** (an honest
+advertised Tx power, else a −59 dBm default (`src/ble/distance.ts`). Published
+figures are shifted 3 dB up, because the estimate reads the upper quartile of
+the packets, not their average: measured 2026-10-06 on a Galaxy Watch8 at
+0.25–3 m, the upper quartile ran 3–4 dB above the median and fitted −56 dBm
+at 1 m with exponent 2.7. **Scanner still shows dBm** (an honest
 measurement in its real unit) and no metres. Revised 2026-10-03: the user wanted
 distance on Hunt, and a range is the most the estimate supports.
 
@@ -180,17 +190,22 @@ a chart.
 - A calibration tile shows the source (Calibrated, Beacon, Tx power,
   Uncalibrated) with an ⓘ that opens a short explanation sheet, and, once the
   user has calibrated, their RSSI at 1 m beside the recalibrate link.
-- The distance reads the median of the last 2 s of signal, not the live
-  smoothed value, so a turned wrist or a hand in the way does not move it a
-  whole bucket. Path-loss exponent 3 (9 dB per doubling), 3 dB hysteresis.
-- "Calibrate at 1 m": the user holds the phone 1 m away, and the median of the
-  last 5 s of signal is saved for that device after a confirm dialog that
+- The distance reads every raw advertisement of the last 3 s (at least the
+  last 6 for a slow advertiser), not the smoothed value, and takes their 75th
+  percentile: multipath fades and bodies only subtract, so the upper quartile
+  ignores them. The range is ±1 σ, where σ combines the packets' spread and
+  count, the calibration source (1.5 dB measured … 6 dB default) and 2.5 dB
+  for the room. Path-loss exponent 3 (9 dB per doubling). The shown figure
+  moves only on a 1 dB change, so the digits do not tick per packet.
+- "Calibrate at 1 m": the user holds the phone 1 m away, and the same
+  estimator over the last 5 s of packets is saved for that device after a confirm dialog that
   states the figure, and warns when it is outside the usual −48…−75 dBm at
   1 m. Saved per address with a broadcast-name fallback, the same
   matching as favorites; the dialog warns when an unnamed device would lose it
   on an address rotation. Recalibrate and remove from the same dialog.
-- A haptic on each distance-bucket change; a distinct, stronger one on
-  reaching `< 1 m`. Bucket changes need 2 dB of hysteresis, so noise at an edge
+- A haptic on each doubling-bucket change (edges 1, 2, 4, 8 m; the buckets
+  also set the colour); a distinct, stronger one on reaching `< 1 m`. Bucket
+  changes need 3 dB of hysteresis, so noise at an edge
   does not buzz.
 - **No device list.** A picker here would be Scanner again, which is the
   duplication this screen exists to avoid. With no target it says so in one
