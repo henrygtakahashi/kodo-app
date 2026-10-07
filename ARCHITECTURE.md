@@ -69,6 +69,37 @@ Set `isBackgroundEnabled: true` to also emit
 `<uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>`,
 which restricts installs to BLE-capable devices. Currently off.
 
+### Scan restarts
+
+Android demotes an unfiltered scan to *opportunistic* after a timeout; from then
+on the app only hears devices while another app is scanning, and the list
+empties. AOSP's timeout is 30 min; the Samsung test phone (SDK 36) does it at
+exactly 5 min:
+
+```
+ScanManager: Moving unfiltered scan to opportunistic scan for ScanClient(… appName=com.anonymous.bleapp)
+```
+
+A scan filter would exempt it, but a scanner must see everything, so
+`use-scan.ts` restarts the scan every 3 min (`RESCAN_MS`). Each restart is a new
+scan client with a new timer. 3 min rather than 4 because JS timers drift on
+device — one 4 min restart landed at 4 min 20 s. Verified over 11 min of logcat:
+no demotion of the live scanner.
+
+### One scan owner
+
+`BleProvider` (gate + scan) is mounted once, in the root layout. ble-plx holds
+a single native scan handle: a second `startDeviceScan` overwrites it without
+disposing the first, and the orphaned scanner stays registered until the
+process dies. With the provider in the tab layout, "Hunt this device" used
+`router.replace('/hunt')`, which stacked a second `(tabs)` and so a second
+provider and scan. Each hunt leaked one scanner; at 27 Android refused new
+ones ("Cannot start scanning operation"), and every packet was delivered 27
+times, inflating packet rates. The detail screen now uses
+`router.dismissTo('/hunt')`. Check with
+`adb shell dumpsys bluetooth_manager | grep -c "app: com.anonymous.bleapp"`,
+which should print 1.
+
 ---
 
 ## 3. State management
@@ -94,8 +125,10 @@ a fixed cadence:
 ```ts
 const pending = new Map<string, Device>()
 
-// 5–20 Hz — touches no store, no React
-manager.startDeviceScan(null, { allowDuplicates: true }, (err, d) => {
+// 5–20 Hz — touches no store, no React.
+// allowDuplicates is iOS-only; LowLatency is the Android equivalent.
+// legacyScan: false also admits BLE 5 extended advertisers.
+manager.startDeviceScan(null, { scanMode: ScanMode.LowLatency, legacyScan: false }, (err, d) => {
   if (d) pending.set(d.id, d)
 })
 
@@ -130,34 +163,64 @@ them into one loop is the mistake that leaves permanent ghosts on the radar.
 This is the contract the render layer depends on — see
 [DESIGN.md §2](./DESIGN.md#2-data-flow-contract).
 
+### Persistence
+
+`expo-sqlite/kv-store`, through `src/storage/kv.ts`. Chosen for its synchronous
+reads: a store hydrates before the first render, so the saved theme is on screen
+from the first frame rather than the default flashing first.
+
+| Store | What persists | How |
+|---|---|---|
+| Theme | `themeId` | zustand `persist`; an unknown id falls back to Graphite |
+| Favorites | address, broadcast name, label, kind | zustand `persist` |
+| Devices | sort, signal floor, named-only, favorites-only, legacy-only | by hand |
+
+The device store is persisted by hand because `persist` writes on every `set`,
+and that store is written 8+ times a second. A subscriber checks references
+first and writes only when a preference actually changed.
+
 ---
 
 ## 4. Expo Router entry point
 
-`expo-router@~57.0.24` is **installed** (with `react-native-screens`,
-`react-native-safe-area-context`, `expo-linking`, `expo-constants`), and
-`expo install` registered its config plugin in `app.json`. It is **not yet wired
-up**: the entry point still boots `App.tsx`, so the router is inert and there is no
-`src/app/` yet. Nothing is broken — the app runs exactly as before. Currently:
+`expo-router@~57.0.24` is **installed and wired up**:
 
-```jsonc
-// package.json
-"main": "index.ts"        // calls registerRootComponent(App) from App.tsx
+- `package.json` → `"main": "expo-router/entry"`
+- `app.json` → `"scheme": "bleapp"` (deep links into `device/[id]`, dev-client
+  linking). Prebuild emits both `bleapp` and `exp+ble-app` schemes.
+- `index.ts` and `App.tsx` are deleted; `src/app/_layout.tsx` is the entry.
+- `tsconfig.json` → `paths: { "@/*": ["./src/*"] }`
+
+`src/app/` (not `app/`) is the route root per AGENTS.md. Expo Router supports it:
+its `getRootDir()` matches `/[\\/]src[\\/]app$/`.
+
+**No `baseUrl`.** TypeScript 6.0.3 errors `TS5101: Option 'baseUrl' is deprecated`.
+With `moduleResolution: "bundler"`, `paths` resolves relative to the tsconfig, so
+`baseUrl` is unnecessary. Metro resolves the alias too — verified by a real
+`npx expo export --platform android` bundle, not just by typecheck.
+
+### Route tree
+
+```
+src/app/
+├── _layout.tsx           Stack, headerShown: false, dark theme
+├── (tabs)/
+│   ├── _layout.tsx       NativeTabs — Scanner + Radar
+│   ├── index.tsx         Scanner — the "/" route
+│   └── radar.tsx
+└── device/
+    └── [id].tsx          Stack screen with a header, pushed over the tabs
 ```
 
-Adopting the router requires:
+Scanner is `index.tsx`, not `scanner.tsx`: Expo Router requires a route matching
+`/`, and Scanner is the first screen built (§Why Scanner first in BRIEF.md).
 
-```jsonc
-"main": "expo-router/entry"   // verified present in expo-router@57.0.24 as entry.js
-```
+Imports: `Stack` from `expo-router/stack`, `NativeTabs` from
+`expo-router/unstable-native-tabs`, theme from `expo-router/react-navigation` —
+never `@react-navigation/*` directly on SDK 56+.
 
-`App.tsx` and `index.ts` are then replaced by `src/app/_layout.tsx`. Also add a
-`scheme` to `app.json` (e.g. `"scheme": "bleapp"`) — needed for deep links into
-`device/[id]` and for dev-client linking.
-
-This is a single atomic change; do it as the first step of building the navigation
-shell, not piecemeal. Until it happens, `expo-router` is a declared dependency with
-no routes — deliberate, not an oversight.
+Note: NativeTabs' `md=` icons pull in `@expo-google-fonts/material-symbols`
+(~967 KB) via expo-router's own dependencies. Expected, not a stray install.
 
 ---
 
@@ -165,6 +228,7 @@ no routes — deliberate, not an oversight.
 
 ```bash
 npx tsc --noEmit                 # typecheck
+npm test                         # Jest unit tests
 npx expo-doctor                  # 21 checks
 npx expo prebuild --clean        # regenerate android/
 npx expo run:android             # dev build
@@ -172,6 +236,16 @@ npx expo start --dev-client      # Metro
 ```
 
 Expo Go cannot load BLE at all — native dev builds only.
+
+Unit tests (`jest-expo`) cover what runs without a radio: advertisement
+parsing, base64, smoothing and bands, distance and calibration, and the device
+store (immediate listing, stale and expiry, ordering, filters). `jest.setup.ts`
+swaps `expo-sqlite/kv-store` for an in-memory map. BLE itself, permissions and
+rendering are verified on the phone, not in Jest.
+
+A render error anywhere below the root lands on `ErrorBoundary` in
+`src/app/_layout.tsx`, which shows `CrashScreen`: the error message, Try again,
+and Copy error details for testers.
 
 ---
 
@@ -184,7 +258,10 @@ Expo Go cannot load BLE at all — native dev builds only.
 `expo-constants@~57.0.20`. Typecheck clean, `expo-doctor` 21/21, Android prebuild
 clean with BLE permissions and dark theme intact.
 
-**Wired up:** BLE plugin, dark theme. **Not wired up:** `expo-router` (see §4).
+**Wired up:** BLE plugin, dark theme, `expo-router` navigation shell (§4).
+
+**Next:** Scanner gate chain (BRIEF.md §0) — permissions, adapter state, and a
+recoverable screen per failure. Screens under `(tabs)/` are placeholders.
 
 **Not yet installed:** the UI and animation stack — see
 [DESIGN.md §3](./DESIGN.md#3-stack).

@@ -66,10 +66,15 @@ and positioning reads an EMA; raw is retained per device for the diagnostics vie
 only. Shared by both components — the Scanner's signal column and the Radar's
 radius must agree.
 
-**No distance estimate in v1.0.** `txPowerLevel` is usually `null`, so a path-loss
-model would be uncalibrated guesswork, and a wrong metre figure is worse than no
-figure. The split: **Scanner shows dBm** (an honest measurement in its real unit),
-**Radar shows bands** (a derived judgement). Neither shows metres.
+**Distance in metres: Hunt only, and only as a range.** `txPowerLevel` is usually
+`null`, so a path-loss model is mostly uncalibrated guesswork, and a single metre
+figure ("3.2 m") would claim precision the signal does not have. Hunt
+therefore shows a doubling bucket (`< 1 m`, `1–2 m`, `2–4 m`, `4–8 m`, `8+ m`),
+labelled as an estimate and as uncalibrated when it is. Calibration comes from
+the user's own 1 m measurement, else an iBeacon's measured 1 m power, else the
+advertised Tx power, else a −59 dBm default (`src/ble/distance.ts`). **Scanner still shows dBm** (an honest
+measurement in its real unit) and no metres. Revised 2026-10-03: the user wanted
+distance on Hunt, and a range is the most the estimate supports.
 
 ---
 
@@ -116,11 +121,12 @@ position across sessions and becomes recognisable by sight.
 - Device list — virtualized (`FlatList`/`FlashList`), never `@expo/ui` `List`
 - Row: name-or-fallback, signal, vendor, last-seen, advertising-mode marker
   (connectable vs. broadcast-only — diagnostic information, not an affordance)
-- Sort: signal · name · first-seen · last-seen — **order is recomputed on a ~1 Hz
-  cadence, not per RSSI tick**, and is suspended while the user is touching the
-  list. See DESIGN.md §2: a signal-sorted list that reorders 8×/sec is unusable
-  regardless of frame rate — rows move out from under the finger.
-- Filter: name/id search, minimum RSSI, named-only
+- Sort: signal · name — **order is recomputed on a 3 s
+  cooldown, not per RSSI tick**, suspended while the user is touching the list,
+  and quantized so near-equal signals hold their position. See DESIGN.md §2.
+- Filter: name/id search, minimum RSSI, named-only, favorites-only
+- Favorites: star a device on its detail screen; favorites pin to the top.
+  Theme, sort and filters persist across restarts (search text does not).
 - Detail screen: advertisement fields, derived values, raw record — read-only,
   with no connect affordance anywhere in the UI
 - Scan control: start/stop, with a visible scanning indicator
@@ -139,62 +145,65 @@ position across sessions and becomes recognisable by sight.
 
 ---
 
-## 2. Radar — Visual Spatial Tracker
+## 2. Hunt — Single-Device Finder
 
-**Purpose:** find a specific device by moving, rather than by reading numbers.
+**Purpose:** find one specific device by moving.
 
-### The constraint that defines this feature
+### Why it is not a second list
 
-**BLE on a single-antenna phone gives distance, not direction.** There is no
-bearing to a device. Any radar that shows a device at a compass position is
-inventing it.
+The first attempt was a radar; cut because a circle of blips asserts a position
+BLE cannot measure. The second was a wall of RSSI traces; cut because it asked
+the same question Scanner already answers — "what is around me, and how strong
+is each" — and Scanner answers it better, with sort and filters.
 
-v1.0 is therefore honest about what it is: **a proximity hunter, not a compass.**
-Radius is real (signal-derived). Angle is not.
+Hunt answers a different question: **where is *this* one**. That is a mode, not
+a chart.
 
-Consequences, all load-bearing:
+| | Scanner | Hunt |
+|---|---|---|
+| Question | what is around me | where is this one |
+| Devices | many | **one** |
+| Posture | standing, reading | walking, glancing |
+| Density | data-dense | one number, large |
 
-- **Angle is deterministic per device**, derived from a hash of its id — stable
-  across frames and sessions, so a blip never jumps. It carries no spatial
-  meaning and the UI must not imply otherwise.
-- **Radius is smoothed RSSI** mapped to proximity bands (immediate / near / far /
-  distant), not a false-precision metre reading.
-- **No rotating sweep line** — it implies directional sampling. Concentric pulses
-  expanding outward read as *range* instead. Approved and recorded in
-  [DESIGN.md §4](./DESIGN.md#4-render-the-radar-in-skia-not-composed-views).
+### Surface
 
-### What makes it actually useful
-
-Hot/cold hunting. Walking changes RSSI; the radar makes that change legible at a
-glance. The valuable signals are **trend and rate**, not position:
-
-- Blip moves inward/outward as you approach or retreat
-- A short trail showing the last few seconds of approach
-- Single-device focus mode — tap a blip to lock onto it, everything else recedes
-- Haptic or visual confirmation on entering the nearest band
-
-### UX surface
-
-- One Skia `<Canvas>` for the whole scene (see DESIGN.md §4)
-- Proximity band rings with band labels, not numeric distances
-- **Tap a blip = focus it** (target lock). This is the radar's primary action —
-  hunting is the feature, so the cheapest gesture serves it.
-- The focused device raises a compact card; **tapping that card** navigates to
-  `device/[id]`. Detail is deliberately the secondary action, one level removed.
-- Tap the empty canvas to clear focus
-- Reuses the Scanner's gate chain unchanged
-
-Tap cannot both toggle canvas focus and navigate, so focus wins the tap and detail
-moves to the card. Long-press is not used for detail — it is undiscoverable for the
-primary path a user needs.
+- One target, chosen from the device detail screen ("Hunt this device").
+- Range rings centred on the target, one per doubling of distance (1, 2, 4,
+  8 m), with the estimated bucket lit and a pulse that quickens as it gets
+  nearer. Rings are symmetric, so they show distance and no direction.
+- The distance bucket as the large reading, with the dBm and calibration source
+  under it, and the trend state (WARMER / COLDER / HOLDING).
+- "strongest N dBm · Ns ago" — the best reading in the window and how long since,
+  so you can tell whether you have already walked past it.
+- The RSSI trace as supporting detail, not the main event.
+- A calibration tile shows the source (Calibrated, Beacon, Tx power,
+  Uncalibrated) with an ⓘ that opens a short explanation sheet, and, once the
+  user has calibrated, their RSSI at 1 m beside the recalibrate link.
+- The distance reads the median of the last 2 s of signal, not the live
+  smoothed value, so a turned wrist or a hand in the way does not move it a
+  whole bucket. Path-loss exponent 3 (9 dB per doubling), 3 dB hysteresis.
+- "Calibrate at 1 m": the user holds the phone 1 m away, and the median of the
+  last 5 s of signal is saved for that device after a confirm dialog that
+  states the figure, and warns when it is outside the usual −48…−75 dBm at
+  1 m. Saved per address with a broadcast-name fallback, the same
+  matching as favorites; the dialog warns when an unnamed device would lose it
+  on an address rotation. Recalibrate and remove from the same dialog.
+- A haptic on each distance-bucket change; a distinct, stronger one on
+  reaching `< 1 m`. Bucket changes need 2 dB of hysteresis, so noise at an edge
+  does not buzz.
+- **No device list.** A picker here would be Scanner again, which is the
+  duplication this screen exists to avoid. With no target it says so in one
+  line.
 
 ### Acceptance criteria
 
-- Holds frame rate with 30+ blips on a release build on the slowest target device.
+- Readable at arm's length while walking.
 - The advertisement stream never re-renders React — the §0 contract holds.
-- Blips do not jitter when a device is stationary (smoothing is doing its job).
-- Walking toward a device produces unmistakable inward motion within ~2 seconds.
-- The UI never implies directional accuracy it does not have.
+- A stationary device reads HOLDING; noise must not read as motion.
+- Walking toward the target changes the lit range unmistakably within ~2 seconds.
+- One haptic per bucket change, never per frame.
+- Nothing implies direction. Distance appears only as a labelled range.
 
 ---
 
@@ -213,7 +222,7 @@ src/app/
 ├── _layout.tsx           Stack (headerShown: false)
 ├── (tabs)/
 │   ├── _layout.tsx       NativeTabs — scanner + radar
-│   ├── scanner.tsx
+│   ├── index.tsx         Scanner (the "/" route — Expo Router needs one)
 │   └── radar.tsx
 └── device/
     └── [id].tsx          Stack screen, pushed over the tabs
@@ -263,7 +272,7 @@ Named explicitly so they do not creep in:
 |---|---|
 | 100% passive listening — no connections in v1.0 | hard rule above, §5 |
 | `lastSeen` TTL sweep, two-stage (3 s stale / 10 s expire) | §0 |
-| EMA smoothing; no distance estimate — dBm in Scanner, bands in Radar | §0 |
+| EMA smoothing; dBm in Scanner, distance range (estimate) only in Hunt | §0 |
 | Pulses not a sweep; angle is a deterministic id hash | DESIGN.md §4 |
 | Proximity bands use fixed RSSI thresholds, not auto-scaling | DESIGN.md §4 |
 | Unnamed-device identity: fallback chain + id-hash colour | §1 |

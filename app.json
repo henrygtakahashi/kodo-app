@@ -2,6 +2,7 @@
   "expo": {
     "name": "ble-app",
     "slug": "ble-app",
+    "scheme": "bleapp",
     "platforms": [
       "android"
     ],
@@ -40,7 +41,8 @@
           "bluetoothAlwaysPermission": "$(PRODUCT_NAME) uses Bluetooth to scan for nearby devices and show them on the radar."
         }
       ],
-      "expo-router"
+      "expo-router",
+      "expo-sqlite"
     ]
   }
 }

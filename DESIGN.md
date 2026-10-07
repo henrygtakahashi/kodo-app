@@ -11,11 +11,23 @@ architecture — BLE config, state management, build setup — lives in
 
 ## 1. Design intent
 
-A BLE radar that does not look like a BLE app. The apps on the store are all a
-scrolling list of MAC addresses, because that is what composing native views
-makes easy. The whole design rests on refusing that default — see §4.
+A scanner that does not look like a scanner. Store BLE apps are a scrolling list
+of MAC addresses because composing native views makes that easy.
 
-Target feel: a dark instrument. Signal rendered as light, not as text.
+Refusing that default is not a licence to invent data — the radar was cut for
+exactly that. Distinction has to come from something materially true about BLE
+and currently invisible. It comes from **rhythm**.
+
+Devices broadcast on intervals from 20 ms to 10.24 s. A Microsoft beacon at
+118 ms draws a near-solid block; a watch at 231 ms a dense comb; a Find My tag at
+2 s two lone ticks. The cadence identifies the kind of device before the name
+does, and no app on the store shows it. Every pixel of it is measured.
+
+The palette is amber CRT: deep brown-black ground, warm bone text, one amber.
+Monochrome by intent — proximity is ordinal, so it reads as a luminance ramp of
+a single hue rather than four unrelated colours. A paper ground was tried first
+and rejected: a green signal on light paper read as neither instrument nor
+document.
 
 ---
 
@@ -41,18 +53,62 @@ sorted list. Three separate subscriptions, not one:
 
 | Subscribes to | Cadence | Re-renders |
 |---|---|---|
-| Ordered array of device **ids** | ~1 Hz, suspended while the list is touched | the list |
-| That device's own `rssi` | 8 Hz | one row's readout cell |
+| Ordered array of device **ids** | 3 s cooldown, suspended while the list is touched | the list |
+| That device's own record | ≤2 Hz, at once on a 3 dBm jump | one row's readouts |
 | Nothing — Reanimated shared values | every frame | nothing |
 
-The list container subscribes to an **id array only**, so an RSSI change cannot
-re-render it. Each row selects its own value
-(`useDeviceStore(s => s.devices[id]?.rssi)`), so a tick repaints one dBm cell.
+Membership changes (a device appears or expires) bypass the cooldown and land
+within one 1 Hz sweep; only *reordering* waits. Explicit sort and filter changes
+bypass it too — a control that takes 3 s to answer reads as broken.
 
-Re-sort cadence is capped at ~1 Hz and paused on touch for a **UX** reason ahead of
-a performance one: a signal-sorted list reordering 8×/sec moves rows out from under
+The list container subscribes to an **id array only**, so an RSSI change cannot
+re-render it. Each row and each cadence strip listens to the store but exits at
+once unless its own record object changed — `merge` replaces only the records
+that received packets, so the per-write cost no longer grows with the list.
+
+Readouts are throttled on top of that. The smoothed dBm and mean interval shift
+on nearly every 8 Hz flush, which re-rendered every row 8×/s for digits nobody
+can read at that rate. They now show at most every 500 ms, or at once on a jump
+of 3 dBm or more; identity, staleness and band changes show immediately.
+
+**The strips are the expensive part, and they were UI-thread bound.** Measured
+on a Galaxy device over scrcpy with 30 synthetic advertisers (two at 5 ms, two
+at 12 ms): 76% janky frames while scrolling, a 29 ms median frame, the UI thread
+at 90% CPU. With the canvas disabled the same load was 7% janky, so the strips
+were the cost, and a 5 ms advertiser — 2000 segments in one strip — was the
+worst of it. Four changes, in order of effect:
+
+1. **Density cap.** Arrivals closer than 40 ms are not kept (`MIN_TICK_GAP_MS`).
+   One pixel of the strip is about 50 ms, so denser ticks drew on top of each
+   other as the same solid block. `packets` still counts every advertisement, so
+   the interval readout is unaffected.
+2. **Translate, don't rebuild.** A strip's path is built once per change in
+   arrivals, relative to the instant it was built. Time passing is a translation
+   by the shared clock, clipped to the track. Most devices advertise rarely, so
+   most paths never rebuild.
+3. **One native call per path.** The path is parsed from an SVG string rather
+   than built with two JSI calls per tick.
+4. **No scroll handler.** An earlier cull of off-screen strips re-ran every
+   path on every scroll event. The canvas scrolls natively with the rows;
+   leave it alone.
+
+Result under the same load: 0.34% janky while scrolling (7 of 2039 frames, 99th
+percentile 18 ms) and 11.6% idle, down from 50%. The clock is a steady 10 Hz
+interval that stops with the scan, so a paused list holds still.
+
+Re-sort cadence is capped and paused on touch for a **UX** reason ahead of a
+performance one: a signal-sorted list reordering 8×/sec moves rows out from under
 the user's finger. Freezing order while scrolling costs nothing and is what makes
 the sort usable at all.
+
+**Cadence alone is not enough.** Raw RSSI swings ±10 dBm, so two devices of
+similar strength trade places on *every* recompute no matter how slow it is. The
+signal key is therefore quantized to 4 dBm buckets, with the row's previous
+position as the tiebreaker inside a bucket.
+
+Bucketing, not an "ignore differences under N" comparator: that comparator is
+intransitive (a≈b, b≈c, yet a<c), and `Array.sort` is explicitly undefined for an
+inconsistent comparator. Bucket-then-tiebreak stays transitive.
 
 ---
 
@@ -108,50 +164,53 @@ all satisfied.
 
 ---
 
-## 4. Render the radar in Skia, not composed views
+## 4. Signal traces in Skia, not a radar
 
-**One `<Canvas>` for the entire radar.** This is the core design decision.
+**The radar is removed.** A circle with blips at angles reads as 2D position
+however the caption is worded — the *form* made a claim the data cannot support.
+BLE gives distance, not bearing, so the display encodes exactly one measured
+quantity per device and how it changes.
 
-A radar built from `<View>`s hits a wall immediately: 30 blips × pulse rings ×
-per-device trails is 100+ nodes, each an `Animated.View`, each an elevation
-shadow. It dies on mid-range Android.
+### Hunt, not a second list
 
-Skia is one native node and draws everything inside it, on the UI thread. That
-unlocks what nobody else ships: blips that bloom and fade on RSSI change,
-concentric pulses, proximity-band rings, per-device trails showing approach and
-retreat, signal noise as real texture.
+The wall of traces that first replaced the radar was itself cut: a list of
+devices with RSSI is what Scanner already is, and a sparkline does not make it a
+different screen. Hunt shows **one** device — a dial, a trend state, and its
+trace — because finding a specific thing is a different mode, not a different
+chart.
+
+| Channel | Encodes | Real? |
+|---|---|---|
+| Lit ring band | distance bucket from smoothed RSSI, log2 scale 0.5–16 m | Estimate |
+| Trace Y | the same scale | **Yes** |
+| Trace X | time, last 20 s | **Yes** |
+| — | *no direction channel exists; rings are symmetric* | — |
+
+The Y scale is fixed, not per-row auto-scaled: auto-scaling would make rows
+incomparable and magnify noise into apparent movement.
+
+History is sampled on a fixed 4 Hz clock, never per packet. Sampling on arrival
+would make the x-axis a function of how chattily each device advertises rather
+than of time.
+
+Trend compares the mean of the recent half of the window against the older half
+and needs 3 dBm to register. Comparing endpoints would report the ±10 dBm noise
+floor as movement.
+
+### Why it is still Skia
+
+Trace samples and the dial's fill live in shared values written from a store
+subscription, and both paths are rebuilt in worklets — a signal change never
+re-renders React. Should a multi-device trace view ever return, it must be a
+single `<Canvas>`: one per row is one native surface per device, which is what
+kills a list like that.
+
+Trace samples live in shared values written from a store subscription and the
+path is rebuilt in a worklet, so a signal change never re-renders React.
 
 **Skia is also the blur.** Platform blur is unavailable on Android, so glow and
 bloom are drawn with Skia's GPU blur shaders — real blur, not a fallback, and one
 render path instead of per-platform compositing.
-
-### Positioning model — pulses, not a sweep
-
-BLE on a single-antenna phone gives **distance, not direction**. There is no
-bearing to a device, so the radar is a proximity hunter, not a compass.
-
-| Axis | Source | Real? |
-|---|---|---|
-| Radius | smoothed RSSI → proximity band | **Yes** |
-| Angle | deterministic hash of device id | **No** — stable, but carries no meaning |
-
-- **No rotating sweep line.** A sweep implies directional sampling the hardware
-  never performs. Concentric pulses expanding outward read as *range* instead,
-  which is what is actually being measured.
-- **Angle must be stable** across frames and sessions so a blip never jumps.
-  Hashing the device id gives that for free, at zero cost.
-- **Bands, not metres** — immediate / near / far / distant. RSSI does not support
-  a precise number and showing one is a lie.
-- **Thresholds are fixed, not auto-scaled.** Auto-scaling to the furthest visible
-  device would make a blip's radius depend on *other* devices — walking toward
-  your target while a nearer device appears would push the target outward,
-  destroying "inward means approaching". Radius stays a pure function of that
-  device's own smoothed RSSI. Starting thresholds, to calibrate on device:
-  immediate > −55 dBm · near −55 to −70 · far −70 to −85 · distant < −85.
-- The UI must never imply directional accuracy it does not have.
-
-What the motion has to convey is **trend and rate**: inward means approaching.
-That legibility is the feature — not position.
 
 ---
 
@@ -230,73 +289,162 @@ Gesture handoff and haptic timing cannot be judged from code.
 
 ## 8. Design tokens
 
-A dark instrument, not a Material app. Values are a starting set — contrast is
-validated, hues are not sacred.
+Two dark palettes: Graphite — neutral chrome with amber kept for data — and
+Night, the original amber CRT. The user picks in Settings; `src/theme/themes.ts`
+holds both and `useTheme()` serves the active one.
 
-### Colour
+Every ratio is computed against that palette's own ground — text at 4.5:1,
+non-text graphics at 3:1. Three palettes in a row had a first draft whose faint
+end failed, so the check now runs before values land.
 
-| Token | Value | Note |
+### Night
+
+| Token | Value | On `bg` |
 |---|---|---|
-| `bg` | `#05070A` | Near-black, faintly blue |
-| `surface` | `#0D1117` | Cards, rows |
-| `surfaceRaised` | `#161B22` | Sheets, menus |
-| `border` | `#21262D` | Hairlines |
-| `textPrimary` | `#E6EDF3` | 17.07:1 — AAA |
-| `textSecondary` | `#8B949E` | 6.56:1 — AA |
-| `textTertiary` | `#7D8590` | 5.41:1 — AA |
-| `signal` | `#00E5A0` | Single accent; 12.21:1 — AAA |
-| `warning` | `#D29922` | 7.99:1 — AAA |
-| `danger` | `#F85149` | 6.02:1 — AA |
+| `bg` | `#0A0705` | deep brown-black |
+| `surface` / `surfaceRaised` | `#16100B` / `#211810` | |
+| `border` | `#2A1F14` | |
+| `textPrimary` | `#F2D9A8` | 14.60 — AAA |
+| `textTertiary` | `#A8855A` | 5.90 — AA |
+| `signal` | `#FFB224` | 11.14 — AAA |
+| bands | `#FDAE26` `#EB9A0F` `#C38418` `#92661C` | 10.77 → 3.96 |
 
-**Proximity bands are a luminance ramp of one hue, not four hues.** The bands are
-*ordinal* (immediate → distant), so a sequential ramp encodes the order; unrelated
-hues would imply unrelated categories.
+### Graphite (default)
 
-| Band | Value | Contrast on `bg` |
+Added after amber-on-brown read as tiring over long sessions, and made the
+default after comparing it with Night on the device. Night stays selectable.
+
+| Token | Value | On `bg` |
 |---|---|---|
-| `immediate` | `#00E5A0` | 12.21 |
-| `near` | `#00B383` | 7.47 |
-| `far` | `#0C7E64` | 4.02 |
-| `distant` | `#3D6E5F` | 3.45 |
+| `bg` | `#121418` | neutral charcoal, 3× Night's luminance |
+| `surface` / `surfaceRaised` | `#1A1D21` / `#22262B` | |
+| `border` | `#2C3036` | |
+| `textPrimary` | `#D5D8DD` | 12.90 — AAA |
+| `textSecondary` | `#ABB0B7` | 8.45 |
+| `textTertiary` | `#878D95` | 5.51 — AA |
+| `signal` | `#FFB224` | 10.22 — AAA |
+| bands | Night's ramp, unchanged | 9.89 → 3.63 (3.33 on the track) |
 
-Luminance descends monotonically and every band clears 3:1, the floor for
-non-text graphics — a distant blip reads as dim but never as absent. Verified by
-computation, not by eye.
+Two levers against glare, neither of them hue: a lifted ground, since
+near-black under bright text is what blooms, and primary text pulled from 14.6
+to 12.9:1. Grey text alone would not help — `#E5E7EB` sits at the same contrast
+as Night's bone. Identity chips are barely tinted (14% saturation) so amber
+stays reserved for what is measured.
+
+**No light palette.** Two were built — amber pressed into warm paper, then a
+neutral light twin of Graphite — and both were dropped. Amber cannot be bright
+on a light ground and stay legible, so it darkens toward brown, and the light
+ground compresses the band ramp. The app is dark-only.
+
+Identity-chip hues are constrained to **24–58** so per-device colour stays inside
+the amber family in every palette.
 
 ### Type
 
-Scale: **12 · 14 · 16 · 20 · 28 · 34**.
-
-**Numeric readouts use a tabular/monospaced face** — RSSI, dBm, MAC suffixes, hex.
-At 5–20 Hz a proportional face changes glyph widths as digits change, so the value
-visibly jitters and the row reflows. Tabular figures hold position. This is a
-correctness issue for a live diagnostics readout, not a stylistic preference.
+Scale: **11 · 12 · 14 · 15 · 17 · 28**. Numeric readouts use tabular figures: at
+8 Hz a proportional face changes glyph widths as digits change, so the value
+jitters and the row reflows. Correctness, not style.
 
 ### Spacing, radius
 
-Spacing on a 4 grid: **4 · 8 · 12 · 16 · 24 · 32 · 48**.
-Radius: **6** (chips) · **10** (cards) · **16** (sheets) · full (pills).
+Spacing on a 4 grid: **4 · 6 · 8 · 10 · 16 · 24**.
+Radius: **3** (chips) · **10** (controls) · full (pills).
 
-Motion durations live in §6.
+### Native chrome
+
+`NativeTabs` takes its colours from the platform theme — Material blue on
+Android — so it is given explicit `backgroundColor`, `tintColor`, `iconColor`,
+`labelStyle`, `indicatorColor` and `rippleColor` from the active palette.
 
 ---
+
+## 8a. Empty states
+
+Empty states (`src/components/empty-state.tsx`) draw one motif, a dot and two
+rings broken at the upper right, in six states: `listening` (ripples leave the
+dot), `paused` (grey, hollow dot, still), `filtered` (lit dot, grey rings),
+`searching` (Hunt without a target, hollow dot breathing), `lost` (warning dot
+breathing) and `off` (grey, slashed through the ring gap). The gate screens in
+`gate-notice.tsx` render through it too: `off` for Bluetooth off, permissions,
+location and unsupported, `searching` while checking or restarting. They spend
+the "Rare" tier of the motion budget. Under reduced motion the ripples stop;
+breathing is opacity only and stays.
 
 ## 9. Open design decisions
 
 **Resolved**
 
-- **Theme is dark — applied.** `userInterfaceStyle: "dark"` in `app.json` with
-  `expo-system-ui@~57.0.4` installed. Verified in the generated project:
-  `android/app/src/main/res/values/strings.xml` carries
-  `expo_system_ui_user_interface_style = dark`, which the native module reads at
-  startup. Note `AppTheme` alone parents `Theme.AppCompat.DayNight.NoActionBar`
-  and would otherwise follow the system setting.
-- **Tokens defined** — see §8.
+- **The detail screen is layered for newcomers and experts.** Top to bottom:
+  hero (kind icon, name, favourite star; the live dBm lives in the Signal tile) and a one-line plain summary of what the
+  device is ("Samsung watch · accepts connections"). Stable facts only: band and
+  rate are already in the hero and tiles, and repeating them made the line
+  change every second; the live trace and cadence strip, bare (no card) on
+  one shared 10 s axis, because two windows under one "now" read as a single
+  misaligned axis, with a faint fill under the trace to ground it; Hunt; four tiles, each a number with its meaning
+  underneath; the broadcast decoded field by field with its AD type code; the
+  identity; and the raw packet last, collapsed, annotated by length / type /
+  data with a Copy button. Jargon carries an ⓘ that opens an `@expo/ui`
+  BottomSheet, so explanations are one tap away without cluttering the screen.
+  Fields a device does not send collapse into one "Not broadcast" line, and
+  padded duplicate scan records are merged. No beginner/expert switch: the
+  layering does that job.
+- **The list screen is "Nearby"**, as both tab label and title, so the tab
+  predicts the screen it opens. "Scanner" named the tool rather than the
+  content, and "Transmitters" was too long for a bottom tab; the word stays in
+  the count line ("5 transmitters broadcasting"). Docs keep "Scanner" as the
+  internal name.
+- **Theme, sort and filters persist** across restarts (ARCHITECTURE.md §3).
+  The search text does not: a stale query on launch would hide devices for no
+  visible reason. When filters hide everything, the list says so.
+- **Favorites, starred only from the detail screen.** Pinned above the sort,
+  marked with an amber star, and filterable. Matched by address, then by exact
+  broadcast name, because many devices rotate their address; the detail screen
+  says which. An unnamed device with a rotating address cannot be recognised
+  again, and the detail screen says that when it is starred. Hunt stays
+  without a picker.
+- **Palettes are user-selectable** in Settings — see §8. Graphite is the default.
+- **Hunt reads on range rings**, replacing the moving-coil meter (2026-10-03).
+  Rings are centred on the target, one per doubling (1, 2, 4, 8 m), so equal
+  spacing matches how the error grows. The whole estimated bucket is lit
+  rather than a line at the point estimate, because a bucket is all the
+  estimate supports. A pulse runs from the target to the lit band, faster when
+  nearer (650 ms at `< 1 m` to 2.3 s at `8+ m`). This is the continuous
+  exception in §6. Reduced motion drops the pulse and snaps the band. There is
+  no blip, so unlike the cut radar the rings show no position or bearing.
+  Layout splits by posture: the top half is what you glance at while walking
+  (rings at most 220 dp, the range, the trend); a panel anchored to the bottom
+  holds what you read standing still (the signal card with live dBm, the
+  strongest reading, calibration).
+- **Scanner is organised by cadence** — see §1 and §4.
 - **Proximity bands: fixed thresholds** — see §4.
-- **Unnamed-device identity** — fallback chain and stable per-device colour, see
-  BRIEF.md.
+- **Scanner row details.** Cadence ticks sit in a recessed `surface` track, so
+  an empty stretch reads as measured silence rather than missing data. The
+  detail screen's live section, which has no card, uses the strip's `bare`
+  variant: no fill, a hairline `border` baseline that does the same job. The
+  column headers read `broadcasts · 10s` (what a tick is, and the window)
+  and `rate · signal`; the signal value carries its own smaller
+  `dBm` unit (`-75 dBm`). A faint `›`
+  marks the row as opening the detail screen; Hunt stays one step further, on
+  that screen. The vendor joins the id chip (`SAMSUNG·3F2A`) only when the label
+  does not already name it, and stays text in the chip colours: no brand logos
+  or brand colours.
+- **Scanner controls collapse behind one button.** A search field with a leading
+  icon and a tune button carrying a count badge. Sort, minimum signal and
+  named-only live in a panel that drops in under 150 ms; with the panel closed,
+  each active setting shows as a removable pill, so nothing hides state. The
+  signal floor is a four-detent segmented control instead of a chip that cycles
+  on tap, because four coarse steps are all RSSI supports and a cycling chip
+  does not say what the next tap does. Legacy-only sits below a rule: it is a
+  scan setting that restarts the radio, not a filter.
+- **Device-kind icons, only on evidence.** `src/ble/kind.ts` reads the kind from,
+  in order: GAP Appearance (from the raw scan record), the Microsoft CDP
+  device-type byte, the Apple message type, service UUIDs, then vendor naming
+  conventions (`[TV]`, `Galaxy Watch`, `Buds`). No signal means no icon, never
+  a guess. The detail screen names the source (`Watch (from name)`), because
+  the last tier is a pattern match rather than a declared value.
 
 **Still open**
 
-- Nothing blocking. Icon set and app name remain unchosen but neither gates
-  Scanner.
+- Dense cadence strips merge into a solid block above roughly 10 Hz. Density is
+  itself the signal, so this may be correct as-is.
+- App name is still a placeholder.
