@@ -3,18 +3,21 @@ import { Linking, StyleSheet, View } from 'react-native';
 
 import type { Gate } from '@/ble/use-ble-gate';
 import { EmptyState, type EmptyArt } from '@/components/empty-state';
+import { useT, type Strings } from '@/i18n';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 
 type Copy = {
   art: EmptyArt;
-  eyebrow: string;
-  title: string;
-  body: string;
-  action?: { label: string; run: (gate: Gate) => void };
+  text: { eyebrow: string; title: string; body: string };
+  action?: { label: (t: Strings) => string; run: (gate: Gate) => void };
 };
 
-const retryAction = { label: 'Try again', run: (gate: Gate) => gate.retry() };
+const retryAction = { label: (t: Strings) => t.common.tryAgain, run: (gate: Gate) => gate.retry() };
+const settingsAction = {
+  label: (t: Strings) => t.common.openSettings,
+  run: () => void Linking.openSettings(),
+};
 
 /**
  * Asks the system to show its "Turn on Bluetooth?" dialog. BleManager.enable()
@@ -34,63 +37,39 @@ function requestBluetoothOn() {
  * because "Bluetooth is off" and "permission denied" need different user
  * actions, and a single generic error teaches the user nothing.
  */
-const COPY: Record<Exclude<Gate['status'], 'ready'>, Copy> = {
-  checking: { art: 'searching', eyebrow: 'starting', title: 'Checking Bluetooth', body: 'One moment.' },
-  transient: {
-    art: 'searching',
-    eyebrow: 'restarting',
-    title: 'Bluetooth is restarting',
-    body: 'The adapter is resetting. This clears on its own.',
-  },
-  'permission-denied': {
-    art: 'off',
-    eyebrow: 'permission',
-    title: 'Nearby devices permission needed',
-    body: 'Scanning for Bluetooth devices requires permission. Nothing is sent anywhere — the scan is passive and stays on this device.',
-    action: retryAction,
-  },
-  'permission-blocked': {
-    art: 'off',
-    eyebrow: 'permission',
-    title: 'Permission blocked',
-    body: 'Android will not ask again, so this has to be changed in system settings. Enable Nearby devices, then come back.',
-    action: { label: 'Open settings', run: () => Linking.openSettings() },
-  },
-  'bluetooth-off': {
-    art: 'off',
-    eyebrow: 'bluetooth off',
-    title: 'Bluetooth is off',
-    body: 'Turn Bluetooth on to scan for nearby devices.',
-    action: { label: 'Turn on Bluetooth', run: requestBluetoothOn },
-  },
-  'location-off': {
-    art: 'off',
-    eyebrow: 'location off',
-    title: 'Location services are off',
-    body: 'On this version of Android, Bluetooth scanning needs location services switched on. Your location is never used or stored — Android just requires it.',
-    action: { label: 'Open settings', run: () => Linking.openSettings() },
-  },
-  unauthorized: {
-    art: 'off',
-    eyebrow: 'not authorised',
-    title: 'Bluetooth is not authorised',
-    body: 'This app is not allowed to use Bluetooth. Grant access in system settings.',
-    action: { label: 'Open settings', run: () => Linking.openSettings() },
-  },
-  // Terminal: no action, because no action exists.
-  unsupported: {
-    art: 'off',
-    eyebrow: 'unsupported',
-    title: 'No Bluetooth LE',
-    body: 'This device does not support Bluetooth Low Energy, so it cannot scan.',
-  },
-};
+function copyFor(status: Exclude<Gate['status'], 'ready'>, t: Strings): Copy {
+  const g = t.gate;
+  switch (status) {
+    case 'checking':
+      return { art: 'searching', text: g.checking };
+    case 'transient':
+      return { art: 'searching', text: g.transient };
+    case 'permission-denied':
+      return { art: 'off', text: g.permissionDenied, action: retryAction };
+    case 'permission-blocked':
+      return { art: 'off', text: g.permissionBlocked, action: settingsAction };
+    case 'bluetooth-off':
+      return {
+        art: 'off',
+        text: g.bluetoothOff,
+        action: { label: (s) => s.gate.bluetoothOff.action, run: requestBluetoothOn },
+      };
+    case 'location-off':
+      return { art: 'off', text: g.locationOff, action: settingsAction };
+    case 'unauthorized':
+      return { art: 'off', text: g.unauthorized, action: settingsAction };
+    // Terminal: no action, because no action exists.
+    case 'unsupported':
+      return { art: 'off', text: g.unsupported };
+  }
+}
 
 export function GateNotice({ gate }: { gate: Gate }) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  const t = useT();
   if (gate.status === 'ready') return null;
-  const copy = COPY[gate.status];
+  const copy = copyFor(gate.status, t);
 
   return (
     <View style={styles.container}>
@@ -98,10 +77,14 @@ export function GateNotice({ gate }: { gate: Gate }) {
         // Remount per status so each state gets its own entrance.
         key={gate.status}
         art={copy.art}
-        eyebrow={copy.eyebrow}
-        title={copy.title}
-        hint={copy.body}
-        action={copy.action ? { label: copy.action.label, onPress: () => copy.action?.run(gate) } : undefined}
+        eyebrow={copy.text.eyebrow}
+        title={copy.text.title}
+        hint={copy.text.body}
+        action={
+          copy.action
+            ? { label: copy.action.label(t), onPress: () => copy.action?.run(gate) }
+            : undefined
+        }
       />
     </View>
   );

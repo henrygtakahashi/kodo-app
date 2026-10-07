@@ -17,6 +17,7 @@ import type { RssiSample } from '@/ble/distance';
 
 import { hueFor } from '@/ble/hash';
 import { deriveIdentity, type Identity } from '@/ble/identity';
+import { getT, labelOf } from '@/i18n';
 import { bandFor, ema, type Band } from '@/ble/signal';
 import { readJSON, writeJSON } from '@/storage/kv';
 import { findFavorite, useFavoritesStore } from './favorites';
@@ -365,8 +366,10 @@ function matches(record: DeviceRecord, filters: Filters, favorite: boolean): boo
 
   const query = filters.query.trim().toLowerCase();
   if (!query) return true;
+  // The label as shown, so "desconhecido" finds an "Unknown device" in Portuguese.
   return (
-    record.identity.label.toLowerCase().includes(query) || record.id.toLowerCase().includes(query)
+    labelOf(record.identity.label, getT()).toLowerCase().includes(query) ||
+    record.id.toLowerCase().includes(query)
   );
 }
 

@@ -9,6 +9,7 @@ import { ScannerControls } from '@/components/scanner-controls';
 import { TransmitterList } from '@/components/transmitter-list';
 import { Screen } from '@/components/screen';
 import { ScreenTitle } from '@/components/screen-title';
+import { useT } from '@/i18n';
 import { useDeviceStore } from '@/store/devices';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
@@ -17,6 +18,7 @@ import type { Palette } from '@/theme/themes';
 export default function ScannerScreen() {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  const t = useT();
   const { gate, scanError, retryScan } = useBle();
 
   // The list subscribes to the id array only. An RSSI change cannot re-render
@@ -45,15 +47,13 @@ export default function ScannerScreen() {
 
   return (
     <Screen>
-      <ScreenTitle title="Nearby" trailing={<ScanToggle />} />
+      <ScreenTitle title={t.nearby.title} trailing={<ScanToggle />} />
 
       <View style={styles.subheader}>
         <Text style={styles.count}>
-          {filtering
-            ? `${order.length} of ${total}`
-            : `${total} ${total === 1 ? 'transmitter' : 'transmitters'} broadcasting`}
+          {filtering ? t.nearby.filteredCount(order.length, total) : t.nearby.count(total)}
         </Text>
-        {!scanning && total > 0 ? <Text style={styles.frozenNote}>Snapshot held</Text> : null}
+        {!scanning && total > 0 ? <Text style={styles.frozenNote}>{t.nearby.snapshotHeld}</Text> : null}
       </View>
 
       <ScannerControls />
@@ -61,13 +61,13 @@ export default function ScannerScreen() {
       {scanError ? (
         <View style={styles.errorRow}>
           <Text style={styles.error} numberOfLines={2}>
-            {scanError}
+            {t.scanErrors[scanError]}
           </Text>
           {/* A failed scan start never recovers on its own. There is an
               automatic retry, but it waits out Android's 30 s throttle window,
               so offer a manual one rather than leaving the user stuck. */}
           <Pressable onPress={retryScan} hitSlop={8} accessibilityRole="button">
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t.common.retry}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -76,18 +76,18 @@ export default function ScannerScreen() {
         scanning ? (
           <EmptyState
             art="listening"
-            eyebrow="listening"
+            eyebrow={t.nearby.listening.eyebrow}
             showElapsed
-            title="Nothing broadcasting yet"
-            hint="Devices appear the moment they advertise. Slow ones send a packet every few seconds."
+            title={t.nearby.listening.title}
+            hint={t.nearby.listening.hint}
           />
         ) : (
           <EmptyState
             art="paused"
-            eyebrow="paused"
-            title="Scanning paused"
-            hint="Resume to pick the air back up."
-            action={{ label: 'Resume scanning', onPress: () => setScanning(true) }}
+            eyebrow={t.nearby.paused.eyebrow}
+            title={t.nearby.paused.title}
+            hint={t.nearby.paused.hint}
+            action={{ label: t.nearby.paused.action, onPress: () => setScanning(true) }}
           />
         )
       ) : order.length === 0 && filtering ? (
@@ -95,10 +95,10 @@ export default function ScannerScreen() {
         // say why rather than look like nothing is broadcasting.
         <EmptyState
           art="filtered"
-          eyebrow={`${total} hidden`}
-          title="Nothing matches"
-          hint="The active filters hide every device in range."
-          action={{ label: 'Clear filters', onPress: clearFilters }}
+          eyebrow={t.nearby.filtered.eyebrow(total)}
+          title={t.nearby.filtered.title}
+          hint={t.nearby.filtered.hint}
+          action={{ label: t.nearby.filtered.action, onPress: clearFilters }}
         />
       ) : (
         <TransmitterList />

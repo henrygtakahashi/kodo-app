@@ -183,10 +183,30 @@ from the first frame rather than the default flashing first.
 | Theme | `themeId` | zustand `persist`; an unknown id falls back to Graphite |
 | Favorites | address, broadcast name, label, kind | zustand `persist` |
 | Devices | sort, signal floor, named-only, favorites-only, legacy-only | by hand |
+| Language | `system`, `en` or `pt-BR` | by hand (`src/i18n`); anything else reads as `system` |
 
 The device store is persisted by hand because `persist` writes on every `set`,
 and that store is written 8+ times a second. A subscriber checks references
 first and writes only when a preference actually changed.
+
+### Language
+
+Every user-facing string lives in `src/i18n/en.ts`; `src/i18n/pt-BR.ts` is
+typed against it, so a missing translation fails `tsc`. No i18n library: the
+tables are plain objects, with functions where a string takes values or
+plurals. Components read them with `useT()`, code outside React (alerts, the
+store's search) with `getT()`. The pure BLE modules take the table as an
+argument defaulting to English, so they and their tests stay free of native
+imports.
+
+The language follows the phone (`expo-localization`, re-read when the app
+returns to the foreground, since Android changes it without a restart), unless
+Settings overrides it. Any `pt` locale gets pt-BR; everything else English.
+`supportedLocales` in `app.json` also lists both for Android 13's per-app
+language setting. Labels the app makes up for unnamed devices ("Unknown
+device") are stored in English and translated at display by `labelOf`, so a
+language switch relabels devices already in the list. pt-BR numbers use a
+decimal comma (`decimal()`).
 
 ---
 

@@ -1,6 +1,6 @@
 # Kodo - Bluetooth Signal Hunt
 
-Play Store title: "Kodo: Bluetooth Signal Hunt" (27 of 30 characters). Android package: `dev.henrytakahashi.kodo` (permanent once uploaded to Play).
+Play Store title: "Kodo: Bluetooth Signal Hunt" (27 of 30 characters). Android package: `dev.henrytakahashi.kodo` (permanent once uploaded to Play). Launcher name: "Kodo".
 
 ## Project Docs
 Read these before proposing stack, UI or motion changes; keep them updated when a decision changes.

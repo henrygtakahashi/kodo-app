@@ -4,19 +4,20 @@ import { memo, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 
+import { useT, type Strings } from '@/i18n';
 import { useDeviceStore, type SortKey } from '@/store/devices';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 import { Segmented } from './segmented';
 
-const SORTS: { value: SortKey; label: string }[] = [
-  { value: 'signal', label: 'Signal' },
-  { value: 'name', label: 'Name' },
+const sortsFor = (t: Strings): { value: SortKey; label: string }[] => [
+  { value: 'signal', label: t.filters.sortSignal },
+  { value: 'name', label: t.filters.sortName },
 ];
 
 /** Four coarse steps are all RSSI supports, so detents rather than a slider. */
-const FLOORS: { value: number | null; label: string }[] = [
-  { value: null, label: 'Any' },
+const floorsFor = (t: Strings): { value: number | null; label: string }[] => [
+  { value: null, label: t.filters.any },
   { value: -85, label: '−85' },
   { value: -70, label: '−70' },
   { value: -55, label: '−55' },
@@ -29,12 +30,13 @@ const PANEL_OUT = FadeOutUp.duration(100);
 function Pill({ label, onClear }: { label: string; onClear: () => void }) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  const t = useT();
   return (
     <Pressable
       onPress={onClear}
       hitSlop={6}
       accessibilityRole="button"
-      accessibilityLabel={`Remove ${label}`}
+      accessibilityLabel={t.filters.remove(label)}
       style={styles.pill}>
       <Text style={styles.pillLabel}>{label}</Text>
       <MaterialCommunityIcons name="close" size={13} color={theme.signal} />
@@ -78,6 +80,9 @@ function ToggleRow({
 export const ScannerControls = memo(function ScannerControls() {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  const t = useT();
+  const sorts = useMemo(() => sortsFor(t), [t]);
+  const floors = useMemo(() => floorsFor(t), [t]);
   const [open, setOpen] = useState(false);
 
   const sortKey = useDeviceStore((state) => state.sortKey);
@@ -101,21 +106,21 @@ export const ScannerControls = memo(function ScannerControls() {
           <TextInput
             value={query}
             onChangeText={(text) => setFilters({ query: text })}
-            placeholder="Search name or address"
+            placeholder={t.filters.search}
             placeholderTextColor={theme.textTertiary}
             autoCapitalize="none"
             autoCorrect={false}
             style={styles.input}
             cursorColor={theme.signal}
             selectionColor={theme.signal}
-            accessibilityLabel="Search devices"
+            accessibilityLabel={t.filters.searchLabel}
           />
           {query.length > 0 && (
             <Pressable
               onPress={() => setFilters({ query: '' })}
               hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="Clear search">
+              accessibilityLabel={t.filters.clearSearch}>
               <MaterialCommunityIcons name="close-circle" size={18} color={theme.textTertiary} />
             </Pressable>
           )}
@@ -126,7 +131,7 @@ export const ScannerControls = memo(function ScannerControls() {
           hitSlop={6}
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
-          accessibilityLabel={active > 0 ? `Filters, ${active} active` : 'Filters'}
+          accessibilityLabel={t.filters.button(active)}
           style={[styles.tune, (open || active > 0) && styles.tuneActive]}>
           <MaterialCommunityIcons
             name="tune-variant"
@@ -147,40 +152,40 @@ export const ScannerControls = memo(function ScannerControls() {
             <Pill label={`≥ ${minRssi} dBm`} onClear={() => setFilters({ minRssi: null })} />
           )}
           {favoritesOnly && (
-            <Pill label="Favorites" onClear={() => setFilters({ favoritesOnly: false })} />
+            <Pill label={t.filters.pillFavorites} onClear={() => setFilters({ favoritesOnly: false })} />
           )}
-          {namedOnly && <Pill label="Named only" onClear={() => setFilters({ namedOnly: false })} />}
-          {legacyOnly && <Pill label="Legacy 4.x" onClear={() => setLegacyOnly(false)} />}
-          {sortChanged && <Pill label="By name" onClear={() => setSortKey('signal')} />}
+          {namedOnly && <Pill label={t.filters.pillNamed} onClear={() => setFilters({ namedOnly: false })} />}
+          {legacyOnly && <Pill label={t.filters.pillLegacy} onClear={() => setLegacyOnly(false)} />}
+          {sortChanged && <Pill label={t.filters.pillByName} onClear={() => setSortKey('signal')} />}
         </Animated.View>
       )}
 
       {open && (
         <Animated.View entering={PANEL_IN} exiting={PANEL_OUT} style={styles.panel}>
-          <Text style={styles.section}>Sort by</Text>
+          <Text style={styles.section}>{t.filters.sortBy}</Text>
           <Segmented
-            options={SORTS}
+            options={sorts}
             value={sortKey}
             onChange={setSortKey}
-            accessibilityLabel="Sort by"
+            accessibilityLabel={t.filters.sortBy}
           />
 
-          <Text style={styles.section}>Minimum signal, dBm</Text>
+          <Text style={styles.section}>{t.filters.minSignal}</Text>
           <Segmented
-            options={FLOORS}
+            options={floors}
             value={minRssi}
             onChange={(next) => setFilters({ minRssi: next })}
-            accessibilityLabel="Minimum signal"
+            accessibilityLabel={t.filters.minSignalLabel}
           />
 
           <ToggleRow
-            label="Favorites only"
+            label={t.filters.favoritesOnly}
             value={favoritesOnly}
             onChange={(next) => setFilters({ favoritesOnly: next })}
           />
 
           <ToggleRow
-            label="Named devices only"
+            label={t.filters.namedOnly}
             value={namedOnly}
             onChange={(next) => setFilters({ namedOnly: next })}
           />
@@ -190,8 +195,8 @@ export const ScannerControls = memo(function ScannerControls() {
           {/* Not a filter: this changes what the radio captures, not what the
               list shows, so it restarts the scan and clears the list. */}
           <ToggleRow
-            label="Legacy advertising only"
-            hint="Bluetooth 4.x. Restarts the scan and clears the list."
+            label={t.filters.legacyOnly}
+            hint={t.filters.legacyHint}
             value={legacyOnly}
             onChange={setLegacyOnly}
           />

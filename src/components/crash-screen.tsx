@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
+import { useT } from '@/i18n';
 import { useTheme } from '@/theme/use-theme';
 import type { Palette } from '@/theme/themes';
 
@@ -18,6 +19,7 @@ const APP_NAME = Constants.expoConfig?.name ?? 'The app';
 
 export function CrashScreen({ error, retry }: ErrorBoundaryProps) {
   const theme = useTheme();
+  const t = useT();
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const copyDetails = () => {
@@ -35,11 +37,11 @@ export function CrashScreen({ error, retry }: ErrorBoundaryProps) {
     <View style={styles.container}>
       <EmptyState
         art="lost"
-        eyebrow="something broke"
-        title={`${APP_NAME} hit an error`}
-        hint={error.message || 'An unexpected error stopped this screen.'}
-        action={{ label: 'Try again', onPress: () => void retry() }}
-        secondary={{ label: 'Copy error details', onPress: copyDetails }}
+        eyebrow={t.crash.eyebrow}
+        title={t.crash.title(APP_NAME)}
+        hint={error.message || t.crash.fallback}
+        action={{ label: t.common.tryAgain, onPress: () => void retry() }}
+        secondary={{ label: t.crash.copyDetails, onPress: copyDetails }}
       />
     </View>
   );
