@@ -1,4 +1,4 @@
-# ble-app — Design, UI & Motion
+# Kodo — Design, UI & Motion
 
 Visual direction, UI stack, and motion rules for the BLE radar. Technical
 architecture — BLE config, state management, build setup — lives in
@@ -370,6 +370,22 @@ location and unsupported, `searching` while checking or restarting. They spend
 the "Rare" tier of the motion budget. Under reduced motion the ripples stop;
 breathing is opacity only and stays.
 
+## 8b. Icon and splash
+
+The icon is an amber dot with two rings, each broken at the upper right: the
+device and its signal spreading out. Colours come from the band ramp
+(`#FDAE26` dot, `#EB9A0F` inner ring, `#92661C` outer ring) on Graphite's
+ground `#121418`. The vector master is `assets/icon-source.svg`; the PNGs
+(`icon.png`, adaptive foreground and monochrome, `splash-icon.png`,
+`store/play-icon-512.png`) are exports of it. The adaptive icon uses a plain
+`backgroundColor`, not a background image. The empty states (§8a) draw the
+same motif.
+
+The splash is `expo-splash-screen` with `backgroundColor` `#121418`, and the
+root `backgroundColor` in `app.json` matches, so cold start is dark from the
+system splash through the first JS frame. Without the plugin, Android 12+
+showed the system splash on white.
+
 ## 9. Open design decisions
 
 **Resolved**
@@ -447,4 +463,3 @@ breathing is opacity only and stays.
 
 - Dense cadence strips merge into a solid block above roughly 10 Hz. Density is
   itself the signal, so this may be correct as-is.
-- App name is still a placeholder.

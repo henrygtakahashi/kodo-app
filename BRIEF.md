@@ -1,4 +1,4 @@
-# ble-app — v1.0 Feature Brief
+# Kodo — v1.0 Feature Brief
 
 **Scope:** strictly two sequential components. Nothing else ships in v1.0.
 

@@ -1,4 +1,4 @@
-# ble-app — Architecture
+# Kodo — Architecture
 
 Technical architecture: environment, BLE layer, state management, verification.
 For UI, motion and visual decisions see [DESIGN.md](./DESIGN.md).
@@ -52,6 +52,15 @@ last release still pins `expo: ^49`, six SDKs behind this project.
 `ACCESS_FINE_LOCATION` is capped at `maxSdkVersion="30"` by `neverForLocation`.
 That is intended: location is requested only as the pre-Android-12 fallback.
 
+`plugins/with-ble-manifest.js` (registered in `app.json`) caps the legacy
+`BLUETOOTH` and `BLUETOOTH_ADMIN` at `maxSdkVersion="30"`, which ble-plx adds
+uncapped, and declares `<uses-feature android.hardware.bluetooth_le
+required="true"/>` so Play hides the app from devices without BLE.
+`android.blockedPermissions` strips `SYSTEM_ALERT_WINDOW` and
+`READ/WRITE_EXTERNAL_STORAGE`, which prebuild adds by default and the app never
+uses. Do not list Bluetooth permissions in `android.permissions`: the ble-plx
+plugin already adds them.
+
 Android autolinking resolves the module to `BlePlxPackage` with a codegen
 `CMakeLists.txt`, so it is New-Architecture-ready — required, since RN 0.86 is
 new-arch only.
@@ -77,7 +86,7 @@ empties. AOSP's timeout is 30 min; the Samsung test phone (SDK 36) does it at
 exactly 5 min:
 
 ```
-ScanManager: Moving unfiltered scan to opportunistic scan for ScanClient(… appName=com.anonymous.bleapp)
+ScanManager: Moving unfiltered scan to opportunistic scan for ScanClient(… appName=dev.henrytakahashi.kodo)
 ```
 
 A scan filter would exempt it, but a scanner must see everything, so
@@ -97,7 +106,7 @@ provider and scan. Each hunt leaked one scanner; at 27 Android refused new
 ones ("Cannot start scanning operation"), and every packet was delivered 27
 times, inflating packet rates. The detail screen now uses
 `router.dismissTo('/hunt')`. Check with
-`adb shell dumpsys bluetooth_manager | grep -c "app: com.anonymous.bleapp"`,
+`adb shell dumpsys bluetooth_manager | grep -c "app: dev.henrytakahashi.kodo"`,
 which should print 1.
 
 ---
@@ -186,8 +195,8 @@ first and writes only when a preference actually changed.
 `expo-router@~57.0.24` is **installed and wired up**:
 
 - `package.json` → `"main": "expo-router/entry"`
-- `app.json` → `"scheme": "bleapp"` (deep links into `device/[id]`, dev-client
-  linking). Prebuild emits both `bleapp` and `exp+ble-app` schemes.
+- `app.json` → `"scheme": "kodo"` (deep links into `device/[id]`, dev-client
+  linking). Prebuild emits both `kodo` and `exp+kodo` schemes.
 - `index.ts` and `App.tsx` are deleted; `src/app/_layout.tsx` is the entry.
 - `tsconfig.json` → `paths: { "@/*": ["./src/*"] }`
 
@@ -247,6 +256,16 @@ A render error anywhere below the root lands on `ErrorBoundary` in
 `src/app/_layout.tsx`, which shows `CrashScreen`: the error message, Try again,
 and Copy error details for testers.
 
+Release builds are local, not EAS. `npm run build:android` runs
+`expo prebuild --clean` and `./gradlew bundleRelease`, producing
+`android/app/build/outputs/bundle/release/app-release.aab`.
+`plugins/with-release-signing.js` signs it with the Play upload key, read from
+`KODO_UPLOAD_STORE_FILE`, `KODO_UPLOAD_STORE_PASSWORD`, `KODO_UPLOAD_KEY_ALIAS`
+and `KODO_UPLOAD_KEY_PASSWORD` in `~/.gradle/gradle.properties` (never the
+repo). Without them the release falls back to the debug key with a Gradle
+warning; Play rejects that build. Raise `android.versionCode` in `app.json`
+before every Play upload. Play App Signing holds the app signing key.
+
 ---
 
 ## 6. Status
@@ -268,7 +287,6 @@ recoverable screen per failure. Screens under `(tabs)/` are placeholders.
 
 ### Open decisions
 
-- App name is a placeholder (`ble-app`).
 - Background scanning (`isBackgroundEnabled`) off; revisit if the radar should
   keep logging while backgrounded.
 - iOS deferred. Re-adding it means dropping `platforms` from `app.json`; note the

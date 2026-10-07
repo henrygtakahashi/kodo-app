@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "ble-app",
-    "slug": "ble-app",
-    "scheme": "bleapp",
+    "name": "Kodo",
+    "slug": "kodo",
+    "scheme": "kodo",
     "platforms": [
       "android"
     ],
@@ -10,24 +10,21 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.bleapp"
-    },
+    "backgroundColor": "#121418",
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#121418",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_ADMIN",
-        "android.permission.BLUETOOTH_CONNECT"
-      ],
-      "package": "com.anonymous.bleapp"
+      "package": "dev.henrytakahashi.kodo",
+      "versionCode": 1,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -42,7 +39,18 @@
         }
       ],
       "expo-router",
-      "expo-sqlite"
+      "expo-sqlite",
+      "./plugins/with-ble-manifest",
+      "./plugins/with-release-signing",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#121418",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ]
     ]
   }
 }
