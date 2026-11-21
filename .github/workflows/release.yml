@@ -1,6 +1,9 @@
-# Builds the signed release APK and attaches it to a draft GitHub Release.
-# Trigger: push a tag matching app.json's version, e.g. `git tag v1.0.0 && git push origin v1.0.0`.
-# Review the draft on GitHub, then publish it.
+# Builds the signed release APK.
+# - Tag push (`git tag v1.0.0 && git push origin v1.0.0`, must match app.json's
+#   version): attaches the APK to a draft GitHub Release. Review it, then publish.
+# - Manual run (Actions → Release APK → Run workflow): test build only. The APK
+#   is uploaded as a run artifact (kept 14 days); no tag, no release. It is
+#   signed with the same key, so a later release installs over it.
 #
 # Required repository secrets (Settings → Secrets and variables → Actions):
 #   KODO_KEYSTORE_BASE64   base64 of the release keystore (`base64 -w0 kodo-release.keystore`)
@@ -13,6 +16,7 @@ name: Release APK
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -34,12 +38,16 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Check tag matches app.json version
+      - name: Resolve version
         run: |
           VERSION=$(node -p "require('./app.json').expo.version")
-          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match app.json version $VERSION"
-            exit 1
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match app.json version $VERSION"
+              exit 1
+            fi
+          else
+            VERSION="$VERSION-test.${GITHUB_SHA::7}"
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
@@ -79,7 +87,20 @@ jobs:
           APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
           "$APKSIGNER" verify --print-certs "$APK"
 
-      - uses: softprops/action-gh-release@v2
+      - name: Upload test APK
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kodo-v${{ env.VERSION }}
+          path: |
+            kodo-v${{ env.VERSION }}.apk
+            kodo-v${{ env.VERSION }}.apk.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Draft GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
         with:
           draft: true
           generate_release_notes: true
