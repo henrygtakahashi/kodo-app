@@ -27,3 +27,4 @@ Read these before proposing stack, UI or motion changes; keep them updated when 
    - Unit tests: `npm test` (Jest, `jest-expo` preset; pure `src/ble/` modules and `src/store/devices.ts`)
    - Prebuild test: `npx expo prebuild --clean`
    - Start Dev Client: `npx expo start --dev-client`
+   - Release APK (GitHub Releases / IzzyOnDroid): `npm run build:apk`, normally via the `v*` tag workflow (ARCHITECTURE.md §5)
