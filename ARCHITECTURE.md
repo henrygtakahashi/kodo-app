@@ -282,8 +282,11 @@ Google Play is deferred (decided 2026-11-21).
 
 - **APK (GitHub / IzzyOnDroid):** `npm run build:apk` runs
   `expo prebuild --clean --platform android` and
-  `./gradlew assembleRelease -PreactNativeArchitectures=armeabi-v7a,arm64-v8a`
-  (phones only; x86 dropped to cut size), producing
+  `./gradlew assembleRelease --build-cache
+  -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
+  -Pexpo.useLegacyPackaging=true` (phones only; x86 dropped, and native
+  libraries compressed in the APK: v1.0.0-test was 75 MB with 54 MB of them
+  stored uncompressed), producing
   `android/app/build/outputs/apk/release/app-release.apk`. Normally built by
   `.github/workflows/release.yml` on a `v*` tag, which must equal `app.json`'s
   `version`; it uploads `kodo-vX.Y.Z.apk` plus a `.sha256` to a **draft**
@@ -291,6 +294,10 @@ Google Play is deferred (decided 2026-11-21).
   test APK, `kodo-vX.Y.Z-test.<sha>.apk`, as a 14-day run artifact with no tag
   or release. It is signed with the release key, so a later release installs
   over it.
+  CI caches `~/.gradle/caches` and `~/.gradle/wrapper` (never
+  `~/.gradle/gradle.properties`, which holds the secrets); native CMake builds
+  are not cacheable. R8 (`android.enableMinifyInReleaseBuilds`) is still off:
+  it would cut ~10 MB of dex but needs keep rules checked on a phone.
 - **AAB (Play, later):** `npm run build:android` → `bundleRelease`.
 
 `plugins/with-release-signing.js` signs release builds with the Kodo release
