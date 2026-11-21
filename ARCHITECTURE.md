@@ -287,7 +287,10 @@ Google Play is deferred (decided 2026-11-21).
   `android/app/build/outputs/apk/release/app-release.apk`. Normally built by
   `.github/workflows/release.yml` on a `v*` tag, which must equal `app.json`'s
   `version`; it uploads `kodo-vX.Y.Z.apk` plus a `.sha256` to a **draft**
-  release.
+  release. Run manually (Actions → Release APK → Run workflow) it builds a
+  test APK, `kodo-vX.Y.Z-test.<sha>.apk`, as a 14-day run artifact with no tag
+  or release. It is signed with the release key, so a later release installs
+  over it.
 - **AAB (Play, later):** `npm run build:android` → `bundleRelease`.
 
 `plugins/with-release-signing.js` signs release builds with the Kodo release
