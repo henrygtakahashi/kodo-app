@@ -1,0 +1,312 @@
+# Kodo — v1.0 Feature Brief
+
+**Scope:** strictly two sequential components. Nothing else ships in v1.0.
+
+1. **Scanner** — Discovery & Diagnostics
+2. **Radar** — Visual Spatial Tracker
+
+Sequential in both senses: Scanner is built first, and Radar consumes the data
+pipeline Scanner establishes. Radar adds no new BLE capability — it is a second
+rendering of the same store.
+
+> **Hard rule for v1.0: 100% passive listening.** The app never opens a
+> connection. No `device.connect()`, no service or characteristic discovery, no
+> `requestMTU()`, no `readRSSI()`, no bonding. Every value displayed comes from the
+> scan advertisement. This is an architectural boundary, not a backlog item — see
+> §5.
+
+Related: [ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)
+
+---
+
+## 0. Shared foundations
+
+Both components depend on these. They are Scanner's cost to pay, and Radar
+inherits them for free.
+
+**Gate chain.** Nothing renders until each step passes, each with its own
+recoverable UI state:
+
+1. Runtime permissions — **`BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` requested
+   together** on Android 12+ via `requestMultiple`; `ACCESS_FINE_LOCATION` on
+   Android ≤ 11. Both Bluetooth permissions belong to Android 12+'s **Nearby
+   devices** permission group, so the user sees a single dialog either way —
+   requesting both costs nothing in UX and guarantees `device.name` resolves
+   whenever the OS will provide it. Requesting only `SCAN` would risk a `null`
+   name for no benefit.
+2. Location services enabled — required for scanning on Android ≤ 11 only.
+3. Adapter state — `BleManager.onStateChange`. Only `PoweredOn` proceeds;
+   `PoweredOff`, `Unauthorized`, `Unsupported`, `Resetting`, `Unknown` each need
+   distinct copy. `Unsupported` is terminal.
+
+Permission denial must be distinguishable from "denied forever" (needs a settings
+deep-link).
+
+**Device staleness.** BLE has no "device left" event. A device that stops
+advertising is indistinguishable from one out of range. Every device carries
+`lastSeen`; a sweep expires entries past a TTL. **This is a correctness
+requirement, not polish** — without it the list only ever grows and the radar
+fills with ghosts.
+
+**Two-stage expiry**, because one threshold cannot serve both goals. Advertising
+intervals range from 20 ms to 10.24 s by spec, and power-saving devices sit at the
+slow end, so a short TTL flickers legitimate devices out and back:
+
+| Age since `lastSeen` | State | Treatment |
+|---|---|---|
+| < 3 s | live | normal |
+| 3–10 s | stale | dimmed, position frozen, still listed |
+| > 10 s | expired | removed from the store |
+
+Stale is the important state: it says "not heard from recently" without claiming
+the device left. Expiry fades a blip out rather than popping it.
+
+**RSSI smoothing.** Raw RSSI swings ±10 dBm on a stationary device. All display
+and positioning reads an EMA; raw is retained per device for the diagnostics view
+only. Shared by both components — the Scanner's signal column and the Radar's
+radius must agree.
+
+**Distance in metres: Hunt only, and only as a range.** `txPowerLevel` is usually
+`null`, so a path-loss model is mostly uncalibrated guesswork, and a single metre
+figure ("3.2 m") would claim precision the signal does not have. Hunt
+therefore shows one approximate figure marked with `≈` (`≈ 1.2 m`, `< 0.5 m`,
+`16+ m`), with the line under it saying "approximate", the likely range sized
+from the actual error (`likely 0.8–2 m`). The calibration tile says
+"Uncalibrated" when it is; the subtitle does not repeat it.
+Revised 2026-10-06 from fixed doubling buckets: the user wanted a figure to
+walk by, as long as it never claims to be exact. On device a Galaxy Watch8
+worn beside the phone swung from −56 to −76 dBm within a minute, so the
+figure can never be exact without calibration. Calibration comes from
+the user's own 1 m measurement, else an iBeacon's measured 1 m power, else the
+advertised Tx power, else a −59 dBm default (`src/ble/distance.ts`). Published
+figures are shifted 3 dB up, because the estimate reads the upper quartile of
+the packets, not their average: measured 2026-10-06 on a Galaxy Watch8 at
+0.25–3 m, the upper quartile ran 3–4 dB above the median and fitted −56 dBm
+at 1 m with exponent 2.7. **Scanner still shows dBm** (an honest
+measurement in its real unit) and no metres. Revised 2026-10-03: the user wanted
+distance on Hunt, and a range is the most the estimate supports.
+
+---
+
+## 1. Scanner — Discovery & Diagnostics
+
+**Purpose:** answer "what is around me, and what can I learn about it without
+touching it."
+
+### Diagnostics — strictly passive
+
+Everything below arrives on the scan callback with no connection, no battery cost,
+and no failure mode. This is the entirety of v1.0's data surface:
+
+| Field | Use |
+|---|---|
+| `id` | Identity (MAC on Android) |
+| `name`, `localName` | Display; both frequently `null` |
+| `rssi` | Signal strength → smoothed, drives both components |
+| `txPowerLevel` | Calibration input for distance estimation; often `null` |
+| `manufacturerData` | Vendor inference via company ID prefix |
+| `serviceUUIDs`, `serviceData` | Capability inference (heart rate, battery, …) |
+| `isConnectable` | Displayed as observed metadata only — v1.0 never acts on it |
+| `rawScanRecord` | Raw hex view for the power user |
+
+Derived: vendor from company ID, device-type guess from service UUIDs, advertising
+interval from arrival timestamps.
+
+### Device identity
+
+Most devices advertise no name, so identity is constructed. Label falls back in
+order:
+
+`name` → `localName` → inferred type from service UUIDs → vendor from company ID →
+`"Unknown device"`
+
+Every row also carries the **last two octets of the id** as a disambiguator — a
+screen of identical "Unknown device" rows is useless — and a **stable colour and
+glyph derived from a hash of the device id**. That is the *same hash* the Radar
+uses for blip angle: one derivation, two uses, so a device keeps its colour and its
+position across sessions and becomes recognisable by sight.
+
+### UX surface
+
+- Device list — virtualized (`FlatList`/`FlashList`), never `@expo/ui` `List`
+- Row: name-or-fallback, signal, vendor, last-seen, advertising-mode marker
+  (connectable vs. broadcast-only — diagnostic information, not an affordance)
+- Sort: signal · name — **order is recomputed on a 3 s
+  cooldown, not per RSSI tick**, suspended while the user is touching the list,
+  and quantized so near-equal signals hold their position. See DESIGN.md §2.
+- Filter: name/id search, minimum RSSI, named-only, favorites-only
+- Favorites: star a device on its detail screen; favorites pin to the top.
+  Theme, sort and filters persist across restarts (search text does not).
+- Detail screen: advertisement fields, derived values, raw record — read-only,
+  with no connect affordance anywhere in the UI
+- Scan control: start/stop, with a visible scanning indicator
+- Empty state distinguishing "scanning, nothing yet" from "scan not running"
+
+### Acceptance criteria
+
+- Survives a dense environment (30+ devices) without dropping frames; verified on
+  a release build on the slowest target device.
+- Devices leaving range disappear within one TTL window.
+- Every gate-chain failure has a recoverable screen; none dead-ends.
+- An unnamed device is still usefully identifiable.
+- Scanning stops on background/unmount — no leaked scan.
+- **No connection is ever attempted.** `connect()` appears nowhere in the
+  codebase; the UI offers no path to it.
+
+---
+
+## 2. Hunt — Single-Device Finder
+
+**Purpose:** find one specific device by moving.
+
+### Why it is not a second list
+
+The first attempt was a radar; cut because a circle of blips asserts a position
+BLE cannot measure. The second was a wall of RSSI traces; cut because it asked
+the same question Scanner already answers — "what is around me, and how strong
+is each" — and Scanner answers it better, with sort and filters.
+
+Hunt answers a different question: **where is *this* one**. That is a mode, not
+a chart.
+
+| | Scanner | Hunt |
+|---|---|---|
+| Question | what is around me | where is this one |
+| Devices | many | **one** |
+| Posture | standing, reading | walking, glancing |
+| Density | data-dense | one number, large |
+
+### Surface
+
+- One target, chosen from the device detail screen ("Hunt this device").
+- Range rings centred on the target, one per doubling of distance (1, 2, 4,
+  8 m), with the estimated bucket lit and a pulse that quickens as it gets
+  nearer. Rings are symmetric, so they show distance and no direction.
+- The distance bucket as the large reading, with the dBm and calibration source
+  under it, and the trend state (WARMER / COLDER / HOLDING).
+- "strongest N dBm · Ns ago" — the best reading in the window and how long since,
+  so you can tell whether you have already walked past it.
+- The RSSI trace as supporting detail, not the main event.
+- A calibration tile shows the source (Calibrated, Beacon, Tx power,
+  Uncalibrated) with an ⓘ that opens a short explanation sheet, and, once the
+  user has calibrated, their RSSI at 1 m beside the recalibrate link.
+- The distance reads every raw advertisement of the last 3 s (at least the
+  last 6 for a slow advertiser), not the smoothed value, and takes their 75th
+  percentile: multipath fades and bodies only subtract, so the upper quartile
+  ignores them. The range is ±1 σ, where σ combines the packets' spread and
+  count, the calibration source (1.5 dB measured … 6 dB default) and 2.5 dB
+  for the room. Path-loss exponent 3 (9 dB per doubling). The shown figure
+  moves only on a 1 dB change, so the digits do not tick per packet.
+- "Calibrate at 1 m": the user holds the phone 1 m away, and the same
+  estimator over the last 5 s of packets is saved for that device after a confirm dialog that
+  states the figure, and warns when it is outside the usual −48…−75 dBm at
+  1 m. Saved per address with a broadcast-name fallback, the same
+  matching as favorites; the dialog warns when an unnamed device would lose it
+  on an address rotation. Recalibrate and remove from the same dialog.
+- A haptic on each doubling-bucket change (edges 1, 2, 4, 8 m; the buckets
+  also set the colour); a distinct, stronger one on reaching `< 1 m`. Bucket
+  changes need 3 dB of hysteresis, so noise at an edge
+  does not buzz.
+- **No device list.** A picker here would be Scanner again, which is the
+  duplication this screen exists to avoid. With no target it says so in one
+  line.
+
+### Acceptance criteria
+
+- Readable at arm's length while walking.
+- The advertisement stream never re-renders React — the §0 contract holds.
+- A stationary device reads HOLDING; noise must not read as motion.
+- Walking toward the target changes the lit range unmistakably within ~2 seconds.
+- One haptic per bucket change, never per frame.
+- Nothing implies direction. Distance appears only as a labelled range.
+
+---
+
+## 3. Navigation
+
+**Two tabs over one screen with a mode toggle.** Scanner and Radar are peers
+rendering the same store, which is what tabs mean; a toggle would imply one is a
+sub-mode of the other. A detail screen reachable from both needs real back
+handling, which is where hand-rolled navigation state stops paying.
+
+`expo-router` with `NativeTabs`, routes under `src/app/` per the project
+convention in AGENTS.md. Tabs must not slide — `animation: 'none'` (DESIGN.md §6).
+
+```
+src/app/
+├── _layout.tsx           Stack (headerShown: false)
+├── (tabs)/
+│   ├── _layout.tsx       NativeTabs — scanner + radar
+│   ├── index.tsx         Scanner (the "/" route — Expo Router needs one)
+│   └── radar.tsx
+└── device/
+    └── [id].tsx          Stack screen, pushed over the tabs
+```
+
+**The root layout must be the Stack, not the tabs.** If `app/_layout.tsx` rendered
+the tab navigator directly, `device/[id].tsx` would be registered as another tab
+route, and there would be no parent stack — so pushing the detail screen, its
+native header, and hardware-back popping would all have nowhere to go. Tabs nest
+one level down inside `(tabs)/_layout.tsx`.
+
+---
+
+## 4. Why Scanner first
+
+Scanner forces every hard problem into the open: the gate chain, the staleness
+sweep, smoothing, and the coalescing store. All are invisible infrastructure that
+the Radar would otherwise have to debug *through* an animation layer — the worst
+possible place to find out the TTL is wrong.
+
+Scanner is also independently shippable. Radar is not: without a proven pipeline
+it is a demo.
+
+---
+
+## 5. Out of scope for v1.0
+
+Named explicitly so they do not creep in:
+
+- Background scanning and logging (`isBackgroundEnabled` stays off)
+- **All active BLE operations** — `connect()`, GATT service and characteristic
+  discovery, characteristic reads or writes, notifications/subscriptions,
+  `requestMTU()`, `requestConnectionPriority()`, connected-mode `readRSSI()`,
+  and bonding/pairing flows
+- Persistence and scan history across launches
+- Device nicknaming, favourites, tagging
+- Export/share of scan data
+- Multi-device trilateration or any real direction-finding
+- iOS (`expo.platforms: ["android"]`)
+- Onboarding, settings beyond what the gate chain needs, analytics
+
+---
+
+## 6. Resolved
+
+| Decision | Where |
+|---|---|
+| 100% passive listening — no connections in v1.0 | hard rule above, §5 |
+| `lastSeen` TTL sweep, two-stage (3 s stale / 10 s expire) | §0 |
+| EMA smoothing; dBm in Scanner, distance range (estimate) only in Hunt | §0 |
+| Pulses not a sweep; angle is a deterministic id hash | DESIGN.md §4 |
+| Proximity bands use fixed RSSI thresholds, not auto-scaling | DESIGN.md §4 |
+| Unnamed-device identity: fallback chain + id-hash colour | §1 |
+| Two tabs via `expo-router`, shared detail route | §3 |
+| Theme dark; tokens defined | DESIGN.md §8 |
+| Request `SCAN` + `CONNECT` together (one Nearby-devices dialog) | §0 |
+
+---
+
+## 7. Open questions
+
+**None blocking.** Every architectural decision for v1.0 is settled.
+
+### Tuning targets, not open questions
+
+Two sets of numbers are defensible starting values that want a real dense
+environment to calibrate. Neither blocks implementation:
+
+| Value | Starting point |
+|---|---|
+| Proximity band thresholds | −55 / −70 / −85 dBm |
+| Staleness thresholds | 3 s stale · 10 s expire |

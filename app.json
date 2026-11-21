@@ -1,25 +1,62 @@
 {
   "expo": {
-    "name": "ble-app",
-    "slug": "ble-app",
+    "name": "Kodo",
+    "slug": "kodo",
+    "scheme": "kodo",
+    "platforms": [
+      "android"
+    ],
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#121418",
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#121418",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "dev.henrytakahashi.kodo",
+      "versionCode": 1,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "neverForLocation": true,
+          "isBackgroundEnabled": false,
+          "bluetoothAlwaysPermission": "$(PRODUCT_NAME) uses Bluetooth to scan for nearby devices and show them on the radar."
+        }
+      ],
+      "expo-router",
+      "expo-sqlite",
+      "./plugins/with-ble-manifest",
+      "./plugins/with-release-signing",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#121418",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportedLocales": { "android": ["en", "pt-BR"] }
+        }
+      ]
+    ]
   }
 }

@@ -1,0 +1,92 @@
+# Builds the signed release APK and attaches it to a draft GitHub Release.
+# Trigger: push a tag matching app.json's version, e.g. `git tag v1.0.0 && git push origin v1.0.0`.
+# Review the draft on GitHub, then publish it.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   KODO_KEYSTORE_BASE64   base64 of the release keystore (`base64 -w0 kodo-release.keystore`)
+#   KODO_KEYSTORE_PASSWORD keystore password
+#   KODO_KEY_ALIAS         key alias
+#   KODO_KEY_PASSWORD      key password
+
+name: Release APK
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Check tag matches app.json version
+        run: |
+          VERSION=$(node -p "require('./app.json').expo.version")
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match app.json version $VERSION"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+
+      - name: Configure release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KODO_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KODO_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KODO_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KODO_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KODO_KEYSTORE_BASE64 secret is not set"
+            exit 1
+          fi
+          KEYSTORE="$RUNNER_TEMP/kodo-release.keystore"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+          mkdir -p ~/.gradle
+          {
+            echo "KODO_UPLOAD_STORE_FILE=$KEYSTORE"
+            echo "KODO_UPLOAD_STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KODO_UPLOAD_KEY_ALIAS=$KEY_ALIAS"
+            echo "KODO_UPLOAD_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> ~/.gradle/gradle.properties
+
+      - name: Build APK
+        run: npm run build:apk
+
+      - name: Rename and checksum
+        run: |
+          APK="kodo-v$VERSION.apk"
+          mv android/app/build/outputs/apk/release/app-release.apk "$APK"
+          sha256sum "$APK" > "$APK.sha256"
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          "$APKSIGNER" verify --print-certs "$APK"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            kodo-v${{ env.VERSION }}.apk
+            kodo-v${{ env.VERSION }}.apk.sha256
+
+      - name: Remove keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/kodo-release.keystore" ~/.gradle/gradle.properties
