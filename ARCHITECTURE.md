@@ -276,15 +276,37 @@ A render error anywhere below the root lands on `ErrorBoundary` in
 `src/app/_layout.tsx`, which shows `CrashScreen`: the error message, Try again,
 and Copy error details for testers.
 
-Release builds are local, not EAS. `npm run build:android` runs
-`expo prebuild --clean` and `./gradlew bundleRelease`, producing
-`android/app/build/outputs/bundle/release/app-release.aab`.
-`plugins/with-release-signing.js` signs it with the Play upload key, read from
-`KODO_UPLOAD_STORE_FILE`, `KODO_UPLOAD_STORE_PASSWORD`, `KODO_UPLOAD_KEY_ALIAS`
-and `KODO_UPLOAD_KEY_PASSWORD` in `~/.gradle/gradle.properties` (never the
-repo). Without them the release falls back to the debug key with a Gradle
-warning; Play rejects that build. Raise `android.versionCode` in `app.json`
-before every Play upload. Play App Signing holds the app signing key.
+Release builds are not EAS. Distribution is GitHub Releases first, then
+IzzyOnDroid (which republishes the GitHub APK with its original signature);
+Google Play is deferred (decided 2026-11-21).
+
+- **APK (GitHub / IzzyOnDroid):** `npm run build:apk` runs
+  `expo prebuild --clean --platform android` and
+  `./gradlew assembleRelease -PreactNativeArchitectures=armeabi-v7a,arm64-v8a`
+  (phones only; x86 dropped to cut size), producing
+  `android/app/build/outputs/apk/release/app-release.apk`. Normally built by
+  `.github/workflows/release.yml` on a `v*` tag, which must equal `app.json`'s
+  `version`; it uploads `kodo-vX.Y.Z.apk` plus a `.sha256` to a **draft**
+  release.
+- **AAB (Play, later):** `npm run build:android` → `bundleRelease`.
+
+`plugins/with-release-signing.js` signs release builds with the Kodo release
+key, read from `KODO_UPLOAD_STORE_FILE`, `KODO_UPLOAD_STORE_PASSWORD`,
+`KODO_UPLOAD_KEY_ALIAS` and `KODO_UPLOAD_KEY_PASSWORD` in
+`~/.gradle/gradle.properties` locally or from repository secrets
+(`KODO_KEYSTORE_BASE64`, `KODO_KEYSTORE_PASSWORD`, `KODO_KEY_ALIAS`,
+`KODO_KEY_PASSWORD`) in CI — never the repo. Without them any release task
+fails; debug builds are unaffected. The same plugin sets
+`dependenciesInfo.includeInApk = false`, since IzzyOnDroid and F-Droid reject
+APKs carrying AGP's Google-encrypted dependency blob.
+
+**One key for every channel.** Android only installs an update signed with the
+same key. When Play is set up, choose to upload this key as the app signing key
+in Play App Signing (not a Google-generated one), or Play and GitHub installs
+will not update each other. Back the keystore and passwords up outside this
+machine: losing them means users must uninstall to get updates.
+
+Raise `android.versionCode` and `version` in `app.json` before every release.
 
 ---
 
