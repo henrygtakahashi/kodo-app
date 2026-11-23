@@ -286,18 +286,34 @@ Google Play is deferred (decided 2026-11-21).
   -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
   -Pexpo.useLegacyPackaging=true` (phones only; x86 dropped, and native
   libraries compressed in the APK: v1.0.0-test was 75 MB with 54 MB of them
-  stored uncompressed), producing
-  `android/app/build/outputs/apk/release/app-release.apk`. Normally built by
-  `.github/workflows/release.yml` on a `v*` tag, which must equal `app.json`'s
-  `version`; it uploads `kodo-vX.Y.Z.apk` plus a `.sha256` to a **draft**
-  release. Run manually (Actions → Release APK → Run workflow) it builds a
-  test APK, `kodo-vX.Y.Z-test.<sha>.apk`, as a 14-day run artifact with no tag
-  or release. It is signed with the release key, so a later release installs
-  over it.
+  stored uncompressed). `plugins/with-release-size.js` turns on R8 and
+  resource shrinking for every release build (APK and AAB) and ABI splits
+  for the APK, so `android/app/build/outputs/apk/release/` holds
+  `app-arm64-v8a-release.apk` and `app-armeabi-v7a-release.apk`. v1.0.0 (one
+  APK, no R8) was 43 MB: 14 MB of dex and ~11 MB of native libraries per ABI;
+  v1.0.1 is 25.5 MB (arm64) and 23.8 MB (armeabi-v7a), dex down to 6.3 MB.
+  **No universal APK** (decided 2026-11-23): with splits on, the React Native
+  plugin stops setting `ndk.abiFilters` and its `**/lib*.so` pickFirst rules
+  beat packaging excludes, so a universal APK carried 8 MB of partial x86
+  libraries that install on x86 and then crash. Reading `pickFirsts` inside
+  `onVariants` to narrow them fails at configuration time.
+- **CI:** `.github/workflows/release.yml`. On a `v*` tag, which must equal
+  `app.json`'s `version`, it uploads `kodo-vX.Y.Z-arm64-v8a.apk`,
+  and `kodo-vX.Y.Z-armeabi-v7a.apk`, each with a `.sha256`, plus `kodo-vX.Y.Z-r8-mapping.txt` (to deobfuscate Java stack
+  traces) to a **draft** release. The job summary lists APK sizes and warns
+  when a per-ABI APK passes 30 MB, IzzyOnDroid's usual limit; IzzyOnDroid
+  takes the arm64 APK. Run manually (Actions → Release APK → Run workflow) it
+  builds the same files as a 14-day run artifact named
+  `kodo-vX.Y.Z-test.<sha>`, with no tag or release. They are signed with the
+  release key, so a later release installs over them.
   CI caches `~/.gradle/caches` and `~/.gradle/wrapper` (never
   `~/.gradle/gradle.properties`, which holds the secrets); native CMake builds
-  are not cacheable. R8 (`android.enableMinifyInReleaseBuilds`) is still off:
-  it would cut ~10 MB of dex but needs keep rules checked on a phone.
+  are not cacheable.
+- **R8 keep rules** for modules that use reflection or JNI without shipping
+  consumer rules (ble-plx with RxAndroidBle, Skia, expo-sqlite,
+  gesture-handler, screens) live in `with-release-size.js`. A new native
+  dependency without consumer rules must be checked on a phone with a release
+  build: R8 failures show up at runtime, not at build time.
 - **AAB (Play, later):** `npm run build:android` → `bundleRelease`.
 
 `plugins/with-release-signing.js` signs release builds with the Kodo release
@@ -317,6 +333,11 @@ will not update each other. Back the keystore and passwords up outside this
 machine: losing them means users must uninstall to get updates.
 
 Raise `android.versionCode` and `version` in `app.json` before every release.
+The APKs carry `versionCode × 10 + ABI digit` (armeabi-v7a 1, arm64-v8a 2;
+0 for an unsplit output such as the AAB), set in `with-release-size.js`: F-Droid-format repos such as
+IzzyOnDroid identify an APK by versionCode, so APKs of one release must
+differ. v1.0.0 was 1; v1.0.1 (`app.json` 2) ships 21/22. The AAB gets the
+×10 code too, so a later Play upload stays above every sideloaded APK.
 
 ---
 
