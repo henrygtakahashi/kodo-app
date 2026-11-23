@@ -101,8 +101,8 @@ jobs:
           APKSIGNER="${BUILD_TOOLS}apksigner"
           AAPT2="${BUILD_TOOLS}aapt2"
           mkdir dist
-          # Universal APK keeps the plain name; per-ABI APKs get the ABI suffix.
-          mv "$OUT/app-universal-release.apk" "dist/kodo-v$VERSION.apk"
+          # One APK per ABI (no universal APK; see plugins/with-release-size.js).
+          ls "$OUT"/app-*-release.apk >/dev/null
           for f in "$OUT"/app-*-release.apk; do
             abi=$(basename "$f" | sed -E 's/^app-(.*)-release\.apk$/\1/')
             mv "$f" "dist/kodo-v$VERSION-$abi.apk"
@@ -119,7 +119,7 @@ jobs:
             echo "$apk: $size bytes, versionCode $code"
             echo "| $apk | $((size / 1048576)) MB | $code |" >> "$GITHUB_STEP_SUMMARY"
             # IzzyOnDroid works with about 30 MB per APK.
-            if [ "$apk" != "kodo-v$VERSION.apk" ] && [ "$size" -gt 31457280 ]; then
+            if [ "$size" -gt 31457280 ]; then
               echo "::warning::$apk is over 30 MB, above IzzyOnDroid's usual limit"
             fi
           done

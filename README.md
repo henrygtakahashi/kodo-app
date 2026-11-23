@@ -18,7 +18,6 @@ From the [latest release](https://github.com/henrygtakahashi/kodo-app/releases/l
 
 - `kodo-vX.Y.Z-arm64-v8a.apk` for almost every phone made since 2017. Pick this one if unsure.
 - `kodo-vX.Y.Z-armeabi-v7a.apk` for older 32-bit phones.
-- `kodo-vX.Y.Z.apk` works on both, but is larger.
 
 Open it on your phone and allow installs from that source when Android asks.
 Each APK has a `.sha256` file next to it that lets you check the download.

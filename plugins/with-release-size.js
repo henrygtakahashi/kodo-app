@@ -8,7 +8,7 @@ const { withAppBuildGradle, withDangerousMod, withGradleProperties } = require('
 // is injected here.
 //
 // 1. R8 minify + resource shrinking for every release build (APK and AAB).
-// 2. ABI splits: assembleRelease writes one APK per ABI plus a universal one.
+// 2. ABI splits: assembleRelease writes one APK per ABI, no universal APK.
 //    The ABI list is the reactNativeArchitectures property (the one the React
 //    Native Gradle plugin builds native code for), so the split APKs match it.
 // 3. Keep rules for modules that reach Java through reflection or JNI and
@@ -40,24 +40,19 @@ const SPLITS = `
             enable true
             reset()
             include(*(findProperty('reactNativeArchitectures') ?: 'armeabi-v7a,arm64-v8a,x86,x86_64').split(',').collect { it.trim() })
-            universalApk true
-        }
-    }
-    // With splits on, the React Native plugin no longer sets ndk.abiFilters
-    // (AGP rejects both together), so prebuilt AARs would add x86/x86_64
-    // libraries to the universal APK: 12 MB of partial, unusable code.
-    packagingOptions {
-        jniLibs {
-            def kodoAbis = (findProperty('reactNativeArchitectures') ?: 'armeabi-v7a,arm64-v8a,x86,x86_64').split(',').collect { it.trim() }
-            ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'].findAll { !kodoAbis.contains(it) }.each { excludes += "lib/\${it}/**" }
+            // No universal APK: with splits on, the React Native plugin stops
+            // setting ndk.abiFilters, and its **/lib*.so pickFirst rules beat
+            // packaging excludes, so a universal APK carried 8 MB of partial
+            // x86 libraries (installs on x86, then crashes). Decided 2026-11-23.
+            universalApk false
         }
     }`;
 
-// Per-ABI versionCodes: app.json versionCode × 10 + ABI digit, universal 0.
-// F-Droid-format repos (IzzyOnDroid) identify an APK by versionCode, so APKs
-// of one release must not share it; the universal APK gets the lowest code so
-// a client prefers the ABI-specific build. The ×10 keeps codes rising across
-// releases (v1.0.1 = 20/21/22; 2 before). Applies to debug builds too.
+// Per-ABI versionCodes: app.json versionCode × 10 + ABI digit (0 for an
+// unsplit output). F-Droid-format repos (IzzyOnDroid) identify an APK by
+// versionCode, so APKs of one release must not share it. The ×10 keeps codes
+// rising across releases (v1.0.1 = 21/22; 1 and 2 before). Applies to debug
+// builds too.
 const ABI_VERSION_CODES = `
 
 // with-release-size: per-ABI versionCodes (versionCode * 10 + ABI digit)
