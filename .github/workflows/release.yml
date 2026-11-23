@@ -97,7 +97,9 @@ jobs:
       - name: Rename, checksum and verify
         run: |
           OUT=android/app/build/outputs/apk/release
-          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
+          APKSIGNER="${BUILD_TOOLS}apksigner"
+          AAPT2="${BUILD_TOOLS}aapt2"
           mkdir dist
           # Universal APK keeps the plain name; per-ABI APKs get the ABI suffix.
           mv "$OUT/app-universal-release.apk" "dist/kodo-v$VERSION.apk"
@@ -107,13 +109,15 @@ jobs:
           done
           cp android/app/build/outputs/mapping/release/mapping.txt "dist/kodo-v$VERSION-r8-mapping.txt"
           cd dist
-          echo "| APK | Size |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| APK | Size | versionCode |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
           for apk in *.apk; do
             sha256sum "$apk" > "$apk.sha256"
             "$APKSIGNER" verify --print-certs "$apk" | grep -E 'DN|SHA-256'
             size=$(stat -c %s "$apk")
-            echo "| $apk | $((size / 1048576)) MB |" >> "$GITHUB_STEP_SUMMARY"
+            code=$("$AAPT2" dump badging "$apk" | sed -nE "1s/.*versionCode='([0-9]+)'.*/\1/p")
+            echo "$apk: $size bytes, versionCode $code"
+            echo "| $apk | $((size / 1048576)) MB | $code |" >> "$GITHUB_STEP_SUMMARY"
             # IzzyOnDroid works with about 30 MB per APK.
             if [ "$apk" != "kodo-v$VERSION.apk" ] && [ "$size" -gt 31457280 ]; then
               echo "::warning::$apk is over 30 MB, above IzzyOnDroid's usual limit"

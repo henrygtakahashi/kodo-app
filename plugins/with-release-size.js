@@ -53,6 +53,25 @@ const SPLITS = `
         }
     }`;
 
+// Per-ABI versionCodes: app.json versionCode × 10 + ABI digit, universal 0.
+// F-Droid-format repos (IzzyOnDroid) identify an APK by versionCode, so APKs
+// of one release must not share it; the universal APK gets the lowest code so
+// a client prefers the ABI-specific build. The ×10 keeps codes rising across
+// releases (v1.0.1 = 20/21/22; 2 before). Applies to debug builds too.
+const ABI_VERSION_CODES = `
+
+// with-release-size: per-ABI versionCodes (versionCode * 10 + ABI digit)
+def kodoAbiCodes = ['armeabi-v7a': 1, 'arm64-v8a': 2, 'x86': 3, 'x86_64': 4]
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.each { output ->
+            def abi = output.filters.find { it.filterType.name() == 'ABI' }?.identifier
+            output.versionCode.set(android.defaultConfig.versionCode * 10 + (abi ? kodoAbiCodes[abi] : 0))
+        }
+    }
+}
+`;
+
 module.exports = function withReleaseSize(config) {
   config = withGradleProperties(config, (config) => {
     const set = (key, value) => {
@@ -73,7 +92,7 @@ module.exports = function withReleaseSize(config) {
     if (!androidBlock.test(gradle)) {
       throw new Error('with-release-size: app/build.gradle layout changed; update the plugin.');
     }
-    config.modResults.contents = gradle.replace(androidBlock, `android {${SPLITS}`);
+    config.modResults.contents = gradle.replace(androidBlock, `android {${SPLITS}`) + ABI_VERSION_CODES;
     return config;
   });
 

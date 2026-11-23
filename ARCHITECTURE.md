@@ -329,6 +329,11 @@ will not update each other. Back the keystore and passwords up outside this
 machine: losing them means users must uninstall to get updates.
 
 Raise `android.versionCode` and `version` in `app.json` before every release.
+The APKs carry `versionCode × 10 + ABI digit` (universal 0, armeabi-v7a 1,
+arm64-v8a 2), set in `with-release-size.js`: F-Droid-format repos such as
+IzzyOnDroid identify an APK by versionCode, so APKs of one release must
+differ. v1.0.0 was 1; v1.0.1 (`app.json` 2) ships 20/21/22. The AAB gets the
+×10 code too, so a later Play upload stays above every sideloaded APK.
 
 ---
 
