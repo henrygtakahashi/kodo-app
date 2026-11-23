@@ -64,14 +64,6 @@ const ABI_VERSION_CODES = `
 def kodoAbiCodes = ['armeabi-v7a': 1, 'arm64-v8a': 2, 'x86': 3, 'x86_64': 4]
 androidComponents {
     onVariants(selector().all()) { variant ->
-        // The React Native plugin adds pickFirsts like **/libreactnative.so,
-        // which win over the x86 excludes above and kept 8 MB of x86
-        // libraries in the universal APK. Narrow them to the built ABIs.
-        def builtAbis = (findProperty('reactNativeArchitectures') ?: 'armeabi-v7a,arm64-v8a,x86,x86_64').split(',').collect { it.trim() }
-        def picks = variant.packaging.jniLibs.pickFirsts.get()
-        variant.packaging.jniLibs.pickFirsts.set(picks.collectMany { p ->
-            p.startsWith('**/') ? builtAbis.collect { "**/\${it}/\${p.substring(3)}".toString() } : [p]
-        })
         variant.outputs.each { output ->
             def abi = output.filters.find { it.filterType.name() == 'ABI' }?.identifier
             output.versionCode.set(android.defaultConfig.versionCode * 10 + (abi ? kodoAbiCodes[abi] : 0))
