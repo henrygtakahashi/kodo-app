@@ -42,6 +42,15 @@ const SPLITS = `
             include(*(findProperty('reactNativeArchitectures') ?: 'armeabi-v7a,arm64-v8a,x86,x86_64').split(',').collect { it.trim() })
             universalApk true
         }
+    }
+    // With splits on, the React Native plugin no longer sets ndk.abiFilters
+    // (AGP rejects both together), so prebuilt AARs would add x86/x86_64
+    // libraries to the universal APK: 12 MB of partial, unusable code.
+    packagingOptions {
+        jniLibs {
+            def kodoAbis = (findProperty('reactNativeArchitectures') ?: 'armeabi-v7a,arm64-v8a,x86,x86_64').split(',').collect { it.trim() }
+            ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'].findAll { !kodoAbis.contains(it) }.each { excludes += "lib/\${it}/**" }
+        }
     }`;
 
 module.exports = function withReleaseSize(config) {
