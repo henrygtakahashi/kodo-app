@@ -1,8 +1,17 @@
 # Kodo — Bluetooth Signal Hunt
 
+<p align="center">
+  <img src="docs/media/kodo-1-scanner.png" width="23%" alt="Scanner">
+  <img src="docs/media/kodo-2-detail.png" width="23%" alt="Device detail">
+  <img src="docs/media/kodo-3-hunt.png" width="23%" alt="Hunt">
+  <img src="docs/media/kodo-4-calibration.png" width="23%" alt="Distance estimate">
+</p>
+
 Kodo lists the Bluetooth Low Energy devices around you and helps you walk to
 one of them. It only listens: it never connects to, pairs with or writes to a
 device. Everything it shows comes from what devices already broadcast.
+
+![Hunt: the app shows an approximate distance range as I walk to the device](docs/media/kodo-hunt.gif)
 
 - **Scanner** — every BLE device in range, with signal strength (dBm), vendor,
   device type, advertising interval and the raw advertisement for the curious.
